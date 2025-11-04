@@ -459,7 +459,7 @@ def _prepare_input(expression_data,
         if not set(gene_names).intersection(set(tf_names)):
             raise ValueError('Intersection of gene_names and tf_names is empty.')
     
-    if target_names == 'all':
+     if isinstance(target_names, str) and target_names == 'all':
         target_names = gene_names
     else:
         if len(target_names) == 0:

@@ -437,7 +437,6 @@ _META_SCHEMA = make_meta({'target': str, 'n_estimators': int})
 def create_graph(expression_matrix,
                  gene_names,
                  tf_names,
-                 target_names,
                  regressor_type,
                  regressor_kwargs,
                  client,
