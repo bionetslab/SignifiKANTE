@@ -1,8 +1,9 @@
-from arboreto.algo import grnboost2_fdr
+
+from signifikante.algo import grnboost2_fdr
 import numpy as np
 import pandas as pd
 
-def test_arboreto_fdr_medoid_tfs_unclustered():
+def test_signifikante_medoid_tfs_unclustered():
     n_tfs = 10
     n_non_tfs = 10
     n_cells = 10
@@ -17,13 +18,13 @@ def test_arboreto_fdr_medoid_tfs_unclustered():
     grn_fdr_df = grnboost2_fdr(
         expression_data=expr_mat,
         tf_names=tfs,
-        num_non_tf_clusters=3,
+        num_target_clusters=3,
         cluster_representative_mode='medoid',
-        output_dir='results/'
+        num_permutations=10,
     )
     print(grn_fdr_df)
 
-def test_arboreto_fdr_medoid_tfs_clustered():
+def test_signifikante_medoid_tfs_clustered():
     n_tfs = 10
     n_non_tfs = 10
     n_cells = 10
@@ -38,13 +39,14 @@ def test_arboreto_fdr_medoid_tfs_clustered():
     grn_fdr_df = grnboost2_fdr(
         expression_data=expr_mat,
         tf_names=tfs,
-        num_non_tf_clusters=3,
+        num_target_clusters=3,
         num_tf_clusters=4,
-        cluster_representative_mode='medoid'
+        cluster_representative_mode='medoid',
+        num_permutations=10,
     )
     print(grn_fdr_df)
 
-def test_arboreto_fdr_random_tfs_unclustered():
+def test_signifikante_random_tfs_unclustered():
     n_tfs = 10
     n_non_tfs = 10
     n_cells = 10
@@ -59,12 +61,13 @@ def test_arboreto_fdr_random_tfs_unclustered():
     grn_fdr_df = grnboost2_fdr(
         expression_data=expr_mat,
         tf_names=tfs,
-        num_non_tf_clusters=3,
-        cluster_representative_mode='random'
+        num_target_clusters=3,
+        cluster_representative_mode='random',
+        num_permutations=10,
     )
     print(grn_fdr_df)
 
-def test_arboreto_fdr_random_tfs_clustered():
+def test_signifikante_random_tfs_clustered():
     n_tfs = 10
     n_non_tfs = 10
     n_cells = 10
@@ -79,13 +82,14 @@ def test_arboreto_fdr_random_tfs_clustered():
     grn_fdr_df = grnboost2_fdr(
         expression_data=expr_mat,
         tf_names=tfs,
-        num_non_tf_clusters=3,
+        num_target_clusters=3,
         num_tf_clusters=4,
-        cluster_representative_mode='random'
+        cluster_representative_mode='random',
+        num_permutations=10,
     )
     print(grn_fdr_df)
 
-def test_arboreto_fdr_full():
+def test_signifikante_full():
     n_tfs = 10
     n_non_tfs = 10
     n_cells = 10
@@ -100,12 +104,9 @@ def test_arboreto_fdr_full():
     grn_fdr_df = grnboost2_fdr(
         expression_data=expr_mat,
         tf_names=tfs,
-        num_non_tf_clusters=3,
+        num_target_clusters=3,
         num_tf_clusters=4,
         cluster_representative_mode='all_genes',
-        output_dir='results/'
+        num_permutations=10,
     )
     print(grn_fdr_df)
-
-if __name__ == "__main__":
-    test_arboreto_fdr_medoid_tfs_unclustered()
