@@ -437,6 +437,7 @@ _META_SCHEMA = make_meta({'target': str, 'n_estimators': int})
 def create_graph(expression_matrix,
                  gene_names,
                  tf_names,
+                 target_names,
                  regressor_type,
                  regressor_kwargs,
                  client,
@@ -480,7 +481,7 @@ def create_graph(expression_matrix,
     delayed_link_dfs = []  # collection of delayed link DataFrames
     delayed_meta_dfs = []  # collection of delayed meta DataFrame
 
-    for target_gene_index in target_gene_indices(gene_names, target_genes):
+    for target_gene_index in target_gene_indices(gene_names, target_genes): #pointer
         target_gene_name = delayed(gene_names[target_gene_index], pure=True)
         target_gene_expression = delayed(expression_matrix[:, target_gene_index], pure=True)
 

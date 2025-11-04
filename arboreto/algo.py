@@ -142,6 +142,7 @@ def grnboost2_fdr(
 def grnboost2(expression_data,
               gene_names=None,
               tf_names='all',
+              target_names = 'all',
               client_or_address='local',
               early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
               limit=None,
@@ -157,6 +158,7 @@ def grnboost2(expression_data,
     :param gene_names: optional list of gene names (strings). Required when a (dense or sparse) matrix is passed as
                        'expression_data' instead of a DataFrame.
     :param tf_names: optional list of transcription factors. If None or 'all', the list of gene_names will be used.
+    :param target_names: optional list of target genes which are used as response variable in the regression model.
     :param client_or_address: one of:
            * None or 'local': a new Client(LocalCluster()) will be used to perform the computation.
            * string address: a new Client(address) will be used to perform the computation.
@@ -169,13 +171,14 @@ def grnboost2(expression_data,
     """
 
     return diy(expression_data=expression_data, regressor_type='GBM', regressor_kwargs=SGBM_KWARGS,
-               gene_names=gene_names, tf_names=tf_names, client_or_address=client_or_address,
+               gene_names=gene_names, tf_names=tf_names, target_names = target_names, client_or_address=client_or_address,
                early_stop_window_length=early_stop_window_length, limit=limit, seed=seed, verbose=verbose)
 
 
 def genie3(expression_data,
            gene_names=None,
            tf_names='all',
+           target_names = 'all',
            client_or_address='local',
            limit=None,
            seed=None,
@@ -201,7 +204,7 @@ def genie3(expression_data,
     """
 
     return diy(expression_data=expression_data, regressor_type='RF', regressor_kwargs=RF_KWARGS,
-               gene_names=gene_names, tf_names=tf_names, client_or_address=client_or_address,
+               gene_names=gene_names, tf_names=tf_names, target_names = target_names, client_or_address=client_or_address,
                limit=limit, seed=seed, verbose=verbose)
 
 def extra_trees(expression_data,
@@ -303,6 +306,7 @@ def diy(expression_data,
         regressor_kwargs,
         gene_names=None,
         tf_names='all',
+        target_names = 'all',
         client_or_address='local',
         early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
         limit=None,
@@ -337,7 +341,7 @@ def diy(expression_data,
         if verbose:
             print('parsing input')
 
-        expression_matrix, gene_names, tf_names = _prepare_input(expression_data, gene_names, tf_names)
+        expression_matrix, gene_names, tf_names, target_names = _prepare_input(expression_data, gene_names, tf_names, target_names)
 
         if verbose:
             print('creating dask graph')
@@ -345,6 +349,7 @@ def diy(expression_data,
         graph = create_graph(expression_matrix,
                              gene_names,
                              tf_names,
+                             target_genes = target_names,
                              client=client,
                              regressor_type=regressor_type,
                              regressor_kwargs=regressor_kwargs,
@@ -418,7 +423,8 @@ def _prepare_client(client_or_address):
 
 def _prepare_input(expression_data,
                    gene_names,
-                   tf_names):
+                   tf_names,
+                   target_names):
     """
     Wrangle the inputs into the correct formats.
 
@@ -452,5 +458,15 @@ def _prepare_input(expression_data,
 
         if not set(gene_names).intersection(set(tf_names)):
             raise ValueError('Intersection of gene_names and tf_names is empty.')
+    
+    if target_names == 'all':
+        target_names = gene_names
+    else:
+        if len(target_names) == 0:
+            raise ValueError('Specified target list is empty')
 
-    return expression_matrix, gene_names, tf_names
+        if not set(gene_names).intersection(set(target_names)):
+            raise ValueError('Intersection of gene_names and target_names is empty.')
+
+
+    return expression_matrix, gene_names, tf_names, target_names

@@ -66,6 +66,33 @@ Arboreto was conceived with the working bioinformatician or data scientist in mi
 * Browse example notebooks_.
 * Report an issue_.
 
+Quick install
+************
+
+The tool is installable via pip and pixi
+
+.. code-block:: bash
+
+    git clone git@github.com:bionetslab/arboreto_fdr.git
+    cd arboreto_fdr
+    pip install -e .
+
+To create a pixi environment, download pixi from pixi.sh, install and run 
+
+.. code-block:: bash
+
+    git clone git@github.com:bionetslab/arboreto_fdr.git
+    cd arboreto_fdr
+    pixi install
+
+Create jupyter kernel using pixi.toml/pyproject.toml, which will install a jupyter kernel using a custom environment (including ipython)
+
+.. code-block:: bash
+
+    git clone git@github.com:bionetslab/arboreto_fdr.git
+    cd arboreto_fdr
+    pixi run -e kernel install-kernel
+
 FDR control
 *******
 
@@ -105,6 +132,8 @@ Arboreto is a component in pySCENIC_: a lightning-fast python implementation of
 the SCENIC_ pipeline [5] (Single-Cell rEgulatory Network Inference and Clustering)
 which enables biologists to infer transcription factors, gene regulatory networks
 and cell types from single-cell RNA-seq data.
+
+
 
 References
 **********

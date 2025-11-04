@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "arboreto"
+version = "0.1.7"
+description = "Scalable gene regulatory network inference using tree-based ensemble regressors with p-values"
+readme = "README.rst"
+requires-python = ">=3.8"
+
+
+authors = [
+    { name = "Thomas Moerman", email = "thomas.moerman@gmail.com" },
+    { name="Anne Hartebrodt", email="anne.hartebrodt@fau.de" },
+    { name="Fabian Woller", email="fabian.woller@fau.de" },
+    { name="Paul Martini", email="paul.martini@fau.de" },
+]
+
+license = { text = "BSD 3-Clause License" }
+
+urls = {Homepage = "https://github.com/bionetslab/arboreto_fdr"}
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+# All scientific/binary-heavy dependencies (which frequently cause build errors) 
+# have been moved to [tool.pixi.dependencies] to ensure they install via Conda binaries.
+dependencies = []
+
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[tool.pixi.dependencies]
+python = "*" # Ensure Python is defined as a dependency
+dask = "*"
+distributed = "*"
+numpy = ">=1.16.5" # Retaining your version constraint
+pandas = "*"
+scikit-learn = "*"
+scipy = "*"
+scikit-learn-extra = "*"
+pyarrow = "*" 
+numba = "*"
+
+[tool.pixi.pypi-dependencies]
+# This section remains for pure-Python packages not available or preferred from Conda,
+# but it currently only contains the local editable install.
+arboreto = { path = ".", editable = true }
+
+[tool.pixi.environments]
+kernel = ["kernel"]
+
+
+# --- KERNEL ENVIRONMENT  ---
+# Defines a new, separate environment named 'kernel'.
+[tool.pixi.feature.kernel.dependencies]
+python = "*"
+dask = "*"
+distributed = "*"
+numpy = ">=1.16.5" # Retaining your version constraint
+pandas = "*"
+scikit-learn = "*"
+scipy = "*"
+scikit-learn-extra = "*"
+pyarrow = "*" 
+ipykernel = "*"
+numba = "*"
+
+
+[tool.pixi.feature.kernel.pypi-dependencies]
+# This section remains for pure-Python packages not available or preferred from Conda,
+# but it currently only contains the local editable install.
+arboreto = { path = ".", editable = true }
+
+[tool.pixi.feature.kernel.tasks]
+install-kernel = "python -m ipykernel install --user --name pixi_alternet_new --display-name pixi_alternet_new"
+uninstall-kernel = "jupyter kernelspec uninstall pixi_alternet_new"
+
