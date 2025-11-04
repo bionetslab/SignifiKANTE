@@ -31,7 +31,7 @@ classifiers = [
 dependencies = [
 	"dask",
 	"distributed",
-	"numpy>=1.16.5,<2.0",
+	"numpy",
 	"pandas",
 	"scikit-learn",
 	"scipy",
@@ -51,7 +51,7 @@ platforms = ["linux-64"]
 python = "*" # Ensure Python is defined as a dependency
 dask = "*"
 distributed = "*"
-numpy = ">=1.16.5" # Retaining your version constraint
+numpy = "*" 
 pandas = "*"
 scikit-learn = "*"
 scipy = "*"
@@ -76,7 +76,7 @@ kernel = ["kernel"]
 python = "*"
 dask = "*"
 distributed = "*"
-numpy = ">=1.16.5" # Retaining your version constraint
+numpy = "*" 
 pandas = "*"
 scikit-learn = "*"
 scipy = "*"
