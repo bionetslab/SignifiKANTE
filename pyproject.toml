@@ -47,6 +47,8 @@ scipy = "*"
 scikit-learn-extra = "*"
 pyarrow = "*" 
 numba = "*"
+pytest = "*"
+xgboost = "*"
 
 [tool.pixi.pypi-dependencies]
 # This section remains for pure-Python packages not available or preferred from Conda,
@@ -71,6 +73,7 @@ scikit-learn-extra = "*"
 pyarrow = "*" 
 ipykernel = "*"
 numba = "*"
+xgboost="*"
 
 
 [tool.pixi.feature.kernel.pypi-dependencies]
