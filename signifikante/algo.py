@@ -5,9 +5,9 @@ from multiprocessing.managers import Value
 
 import pandas as pd
 from distributed import Client, LocalCluster
-from arboreto.core import create_graph, SGBM_KWARGS, RF_KWARGS, EARLY_STOP_WINDOW_LENGTH, ET_KWARGS, XGB_KWARGS, \
+from signifikante.core import create_graph, SGBM_KWARGS, RF_KWARGS, EARLY_STOP_WINDOW_LENGTH, ET_KWARGS, XGB_KWARGS, \
     LASSO_KWARGS
-from arboreto.fdr import perform_fdr
+from signifikante.fdr import perform_fdr
 import os
 
 def grnboost2_fdr(
@@ -149,7 +149,7 @@ def grnboost2(expression_data,
               seed=None,
               verbose=False):
     """
-    Launch arboreto with [GRNBoost2] profile.
+    Launch signifikante with [GRNBoost2] profile.
 
     :param expression_data: one of:
            * a pandas DataFrame (rows=observations, columns=genes)
@@ -184,7 +184,7 @@ def genie3(expression_data,
            seed=None,
            verbose=False):
     """
-    Launch arboreto with [GENIE3] profile.
+    Launch signifikante with [GENIE3] profile.
 
     :param expression_data: one of:
            * a pandas DataFrame (rows=observations, columns=genes)
@@ -215,7 +215,7 @@ def extra_trees(expression_data,
            seed=None,
            verbose=False):
     """
-    Launch arboreto with [extra-tree (ET)] profile.
+    Launch signifikante with [extra-tree (ET)] profile.
 
     :param expression_data: one of:
            * a pandas DataFrame (rows=observations, columns=genes)
@@ -246,7 +246,7 @@ def xgboost(expression_data,
            seed=None,
            verbose=False):
     """
-    Launch arboreto with [xgboost] profile.
+    Launch signifikante with [xgboost] profile.
 
     :param expression_data: one of:
            * a pandas DataFrame (rows=observations, columns=genes)
@@ -277,7 +277,7 @@ def lasso(expression_data,
            seed=None,
            verbose=False):
     """
-    Launch arboreto with [lasso] profile.
+    Launch signifikante with [lasso] profile.
 
     :param expression_data: one of:
            * a pandas DataFrame (rows=observations, columns=genes)
