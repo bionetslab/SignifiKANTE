@@ -1,12 +1,12 @@
 """
 Top-level functions.
 """
-from multiprocessing.managers import Value
 
 import pandas as pd
 from distributed import Client, LocalCluster
-from signifikante.core import create_graph, SGBM_KWARGS, RF_KWARGS, EARLY_STOP_WINDOW_LENGTH, ET_KWARGS, XGB_KWARGS, \
-    LASSO_KWARGS
+from signifikante.core import (
+    create_graph, SGBM_KWARGS, RF_KWARGS, EARLY_STOP_WINDOW_LENGTH, ET_KWARGS, XGB_KWARGS, LASSO_KWARGS
+)
 from signifikante.fdr import perform_fdr
 import os
 
@@ -459,7 +459,7 @@ def _prepare_input(expression_data,
         if not set(gene_names).intersection(set(tf_names)):
             raise ValueError('Intersection of gene_names and tf_names is empty.')
     
-     if isinstance(target_names, str) and target_names == 'all':
+    if isinstance(target_names, str) and target_names == 'all':
         target_names = gene_names
     else:
         if len(target_names) == 0:
