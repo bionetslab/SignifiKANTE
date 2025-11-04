@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "signifikante"
-version = "0.1.7"
+version = "0.1.0"
 description = "Scalable gene regulatory network inference using tree-based ensemble regressors with p-values"
 readme = "README.rst"
 requires-python = ">=3.8"
