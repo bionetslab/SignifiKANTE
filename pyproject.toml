@@ -27,9 +27,20 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
-# All scientific/binary-heavy dependencies (which frequently cause build errors) 
-# have been moved to [tool.pixi.dependencies] to ensure they install via Conda binaries.
-dependencies = []
+# Dependencies for pip installs 
+dependencies = [
+	"dask",
+	"distributed",
+	"numpy>=1.16.5,<2.0",
+	"pandas",
+	"scikit-learn",
+	"scipy",
+	"scikit-learn-extra",
+	"pyarrow",
+	"numba",
+	"pytest",
+	"xgboost",
+]
 
 
 [tool.pixi.workspace]
