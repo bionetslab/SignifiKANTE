@@ -1,12 +1,12 @@
 SignifiKANTE
-***********
+************
 
 .. _arboreto: https://arboreto.readthedocs.io
 
 SignifiKANTE builds upon the arboreto_ software library to enable regression-based gene regulatory network inference and efficient, permutation-based empirical *P*-value computation for predicted regulatory links.
 
 Quick install
-************
+*************
 
 The tool is installable via pip and pixi
 
@@ -33,7 +33,7 @@ Create jupyter kernel using pixi.toml/pyproject.toml, which will install a jupyt
     pixi run -e kernel install-kernel
 
 FDR control
-*******
+***********
 
 We provide an efficient FDR control implementation based on GRNBoost2, which computes empirical *P*-values for each edge in a given or to-be-inferred GRN. Our implementation offers both a full and a (more efficient) approximate way of *P*-value computation. An example call to our FDR control includes the following steps:
 
@@ -59,7 +59,3 @@ A more detailed description of all parameters of the :code:`grnboost2_fdr` funct
 License
 *******
 This project is licensed under the GNU General Public `LICENSE <./LICENSE>`_ v3.0.
-
-
-References
-**********
