@@ -7,7 +7,7 @@ name = "signifikante"
 version = "0.1.0"
 description = "Scalable gene regulatory network inference using tree-based ensemble regressors with p-values"
 readme = "README.rst"
-requires-python = ">=3.8"
+requires-python = ">=3.10,<3.14"
 
 
 authors = [
@@ -31,11 +31,12 @@ classifiers = [
 dependencies = [
 	"dask",
 	"distributed",
-	"numpy",
+	"numpy<2.0",
 	"pandas",
 	"scikit-learn",
 	"scipy",
 	"scikit-learn-extra",
+	"setuptools",  # required for scikit-learn-extra under python 3.13
 	"pyarrow",
 	"numba",
 	"pytest",
