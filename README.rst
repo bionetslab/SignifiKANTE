@@ -54,7 +54,11 @@ We provide an efficient FDR control implementation based on GRNBoost2, which com
                 num_tf_clusters=-1
             )
 
-A more detailed description of all parameters of the :code:`grnboost2_fdr` function can be found in the respective docstring.
+A more detailed description of all parameters of the :code:`signifikante_fdr` function can be found in the respective docstring.
+
+Integration of additional regression-based GRN inference methods
+****************************************************************
+TODO.
 
 License
 *******
