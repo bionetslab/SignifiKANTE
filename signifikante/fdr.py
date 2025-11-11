@@ -16,6 +16,7 @@ from dask.dataframe import from_delayed
 from dask.dataframe.utils import make_meta
 import pickle
 import os
+from statsmodels.stats.multitest import multipletests
 
 FDR_GRN_SCHEMA = make_meta({'TF': str, 'target': str, 'importance': float, 'count' : float, 'shuffled_occurences' : float})
 
@@ -36,10 +37,11 @@ def perform_fdr(
         num_permutations,
         output_dir,
         scale_for_tf_sampling,
-        regressor_type
+        regressor_type,
+        apply_bh_correction
 ):
-    # Extract TF name and non-TF name lists from expression matrix object.
-    expression_matrix, gene_names, tf_names = _prepare_input(expression_data, None, tf_names)
+    # Extract TF name and target name lists from expression matrix object.
+    _, gene_names, tf_names = _prepare_input(expression_data, None, tf_names)
     non_tf_names = [gene for gene in gene_names if not gene in tf_names]
 
     # Check if TF clustering is desired.
@@ -49,7 +51,7 @@ def perform_fdr(
     else:
         are_tfs_clustered = True
 
-    # Check if non-TF clustering is desired.
+    # Check if target clustering is desired.
     if num_non_tf_clusters == -1:
         num_non_tf_clusters = len(non_tf_names)
 
@@ -141,13 +143,16 @@ def perform_fdr(
                    output_dir=output_dir,
                    scale_for_tf_sampling=scale_for_tf_sampling
                    )
+    
     # Transform counts into P-values and remove count column.
     fdr_controlled_df['pvalue'] = (fdr_controlled_df['count']+1)/(num_permutations+1)
     if not scale_for_tf_sampling:
         fdr_controlled_df.drop(columns=['count'], inplace=True)
         fdr_controlled_df.drop(columns=['shuffled_occurences'], inplace=True)
+    if apply_bh_correction:
+        fdr_controlled_df['pval_bh'] = multipletests(fdr_controlled_df['pvalue'], method='fdr_bh')[1]
+    
     return fdr_controlled_df
-
 
 
 def diy_fdr(expression_data,

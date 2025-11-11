@@ -10,7 +10,7 @@ from signifikante.core import (
 from signifikante.fdr import perform_fdr
 import os
 
-def grnboost2_fdr(
+def signifikante_fdr(
         expression_data : pd.DataFrame,
         cluster_representative_mode : str,
         num_target_clusters : int = -1,
@@ -27,7 +27,8 @@ def grnboost2_fdr(
         num_permutations=1000,
         output_dir=None,
         scale_for_tf_sampling : bool = False,
-        inference_mode : str = "grnboost2"
+        inference_mode : str = "grnboost2",
+        apply_bh_correction : bool = False
 ):
     """
         :param expression_data: Expression matrix as pandas dataframe with genes as columns, samples as columns.
@@ -68,14 +69,14 @@ def grnboost2_fdr(
         print("running FDR without TF clustering")
 
     if verbose and num_target_clusters == -1:
-        print("running FDR without non-TF clustering")
+        print("running FDR without target clustering")
 
     if output_dir is not None:
         if not os.path.exists(output_dir):
             print('output directory does not exist, creating!')
             os.makedirs(output_dir, exist_ok=True)
 
-    # If input GRN has not been given, run one GRNBoost inference call upfront and transform into necessary
+    # If input GRN has not been given, run one GRN inference call upfront and transform into necessary
     # dictionary-based format.
     if input_grn is None:
         input_grn = grnboost2(
@@ -96,10 +97,10 @@ def grnboost2_fdr(
     keep_bool = input_grn['TF'].isin(genes_intersection) * input_grn['target'].isin(genes_intersection)
     input_grn_aligned = input_grn[keep_bool]
 
-    # Extract the TFs from the input GRN
+    # Extract the TFs from the input GRN.
     tf_names_input_grn = list(set(input_grn_aligned['TF']))
 
-    # Transform input GRN into dict format
+    # Transform input GRN into dict format.
     input_grn_dict = dict()
     for tf, target, importance in zip(input_grn_aligned['TF'], input_grn_aligned['target'], input_grn_aligned['importance']):
         input_grn_dict[(tf, target)] = {'importance': importance}
@@ -135,7 +136,8 @@ def grnboost2_fdr(
         num_permutations,
         output_dir,
         scale_for_tf_sampling,
-        regressor_type
+        regressor_type,
+        apply_bh_correction
     )
 
 
