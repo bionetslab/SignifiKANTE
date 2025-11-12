@@ -50,18 +50,19 @@ We provide an efficient FDR control for regulatory links based on any given regr
     import pandas as pd
     import numpy as np
     from signifikante.algo import signifikante_fdr
-
+    
     if __name__ == "__main__":
-
+    
         # Simulate expression dataset with 100 samples and 10 genes.
         expression_data = np.random.randn(100, 10)
         expression_df = pd.DataFrame(expression_data, columns=[f"Gene{i}" for i in range(10)])
         # Simulate three artificial TFs.
         tf_list = [f"Gene{i}" for i in range(3)]
-
+    
         # Run SignifiKANTE's approximate FDR control.
         fdr_grn = signifikante_fdr(
                     expression_data=expression_df,
+                    normalize_gene_expression=True,
                     tf_names=tf_list,
                     cluster_representative_mode="random",
                     num_target_clusters=2,
@@ -79,6 +80,8 @@ Below, you can find a more detailed description of the parameters of SignifiKANT
 - :code:`cluster_representative_mode [str]`: How to draw representatives from target gene clusters. Can be one of "random" or "medoid" for approximate P-value computation, or "all_genes" for exact (DIANE-like) P-values.
 
 Additional parameters of SignifiKANTE's FDR control:
+
+- :code:`normalize_gene_expression [bool]` :  Whether or not to apply z-score normalization on gene columns in input expression matrix.
 
 
 - :code:`inference_mode [str]`: Which GRN inference method to use under the hood. Can be one of "grnboost2", "genie3", "xgboost", and "lasso". Defaults to "grnboost2".
@@ -100,6 +103,10 @@ Further more technical parameters:
 - :code:`seed [int]`: Random seed for regressor models. Defaults to None.
 - :code:`verbose [bool]`: Whether or not to print detailed additional information. Defaults to False.
 - :code:`output_dir [str]`: Where to save additional intermediate data to. Defaults to None, i.e. saves no intermediate results.
+
+The function returns a pandas dataframe representing the reference GRN with columns 'TF', 'target', and 'importance'. The column 'pvalue' stores empirical P-values per edge. If :code:`apply_bh_correction=True`, an additional column 'pvalue_bh' is returned.
+
+
 
 
 Integration of additional regression-based GRN inference methods

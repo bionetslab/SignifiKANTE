@@ -29,32 +29,33 @@ def signifikante_fdr(
         output_dir=None,
         scale_for_tf_sampling : bool = False,
         inference_mode : str = "grnboost2",
-        apply_bh_correction : bool = False
+        apply_bh_correction : bool = False,
+        normalize_gene_expression : bool = False
 ):
     """
-        :param expression_data: Expression matrix as pandas dataframe with genes as columns, samples as columns.
-        :param cluster_representative_mode: How to do representatives from gene clusters ('random', 'medoid') or
-            if to use all genes for full FDR ('all_genes').
-        :param num_target_clusters: Number of clusters for target genes.
-        :param num_tf_clusters: Number of clusters for TFs.
-        :param target_cluster_mode: How to cluster targets, can be one of 'wasserstein', 'kmeans'.
-        :param tf_cluster_mode: How to cluster TFs, can be one of 'correlation', 'wasserstein'.
-        :param input_grn: Optional. If an input GRN to perform FDR control on is given, pass this here as dataframe
-            with columns 'TF', 'target', 'importance'.
-        :param target_subset: Subset of target genes to perform FDR control on.
-        :param tf_names: optional list of transcription factors. If None or 'all', the list of gene_names will be used.
-        :param client_or_address: one of:
-           * None or 'local': a new Client(LocalCluster()) will be used to perform the computation.
-           * string address: a new Client(address) will be used to perform the computation.
-           * a Client instance: the specified Client instance will be used to perform the computation.
-        :param early_stop_window_length: early stop window length. Default 25.
-        :param seed: optional random seed for the regressors. Default None.
-        :param verbose: print info.
-        :param num_permutations: Number of permutations to run for empirical P-value computation.
-        :param output_dir: Directory where to write intermediate results to.
-        :param scale_for_tf_sampling: Whether to additionally report number of occurences of edges across all permutations.
-        :param inference_mode: Which underlying GRN inference tool to use, one of 'grnboost2', 'genie3', 'extra_trees', 'xgboost', 'lasso'.
-        :return: a pandas DataFrame['TF', 'target', 'importance', 'pvalue'] representing the FDR-controlled gene regulatory links.
+        :param expression_data: Expression matrix with genes as columns and samples as rows.
+        :param cluster_representative_mode: How to draw representatives from target gene clusters. 
+            Can be one of "random" or "medoid" for approximate P-value computation, or "all_genes" for exact (DIANE-like) P-values.
+        :param num_target_clusters: Number of target gene clusters. If set to -1, no target gene clustering will be applied. Defaults to -1.
+        :param num_tf_clusters: Experimental feature. Used for setting the number of desired TF clusters, if set to -1, no TF clustering will be applied. Defaults to -1.
+        :param target_cluster_mode: Experimental feature. Indicates, which clustering to use for target gene clustering. Defaults to "wasserstein".
+        :param tf_cluster_mode: Experimental feature. Indicates, which clustering mode to use for TF clustering. Defaults to "correlation".
+        :param input_grn: Reference GRN to use for FDR control. Needs to possess columns 'TF', 'target', 'importance'. 
+            Should only be used, when it is clear that this GRN is inferred using the same method indicated in inference_mode. 
+            Defaults to None. If no reference GRN is given, a new one is inferred in the beginning.
+        :param target_subset: Subset of target genes to consider for FDR control. Only compatible with "all_genes" FDR mode.
+        :param tf_names: List of strings representing TF names. Should be subset of gene names contained in expression_data. Defaults to None. If no list is given, all genes are treated as potential TFs.
+        :param client_or_address: Whether to perform computation on given input Dask Cluster object, or to create a new local one ("local"). Defaults to "local".
+        :param early_stop_window_length: Window length to use for early stopping. Defaults to 25.
+        :param seed: Random seed for regressor models. Defaults to None.
+        :param verbose: Whether or not to print detailed additional information. Defaults to False.
+        :param num_permutations: How many permutations to perform for random background model for empirical P-value computation. Defaults to 1000.
+        :param output_dir: Where to save additional intermediate data to. Defaults to None, i.e. saves no intermediate results.
+        :param scale_for_tf_sampling: Experimental feature. Whether or not to keep track of occurences of edges in permuted GRNs. Defaults to False.
+        :param inference_mode: Which GRN inference method to use under the hood. Can be one of "grnboost2", "genie3", "xgboost", and "lasso". Defaults to "grnboost2".
+        :param apply_bh_correction: Whether or not to additionally return Benjamini-Hochberg adjusted P-values.
+        :param normalize_gene_expression: Whether or not to apply z-score normalization on gene columns in input expression matrix.
+        :return: Pandas DataFrame with columns 'TF', 'target', 'importance', 'pvalue' representing P-values on each gene regulatory link.
     """
     if cluster_representative_mode not in {'medoid', 'random', 'all_genes'}:
         raise ValueError('cluster_representative_mode must be one of "medoid", "random", "all_genes"')
@@ -77,8 +78,11 @@ def signifikante_fdr(
             print('output directory does not exist, creating!')
             os.makedirs(output_dir, exist_ok=True)
 
-    # If input GRN has not been given, run one GRN inference call upfront and transform into necessary
-    # dictionary-based format.
+    # If desired, apply z-score normalization on input gene expression matrix.
+    if normalize_gene_expression:
+        expression_data = (expression_data - expression_data.mean()) / expression_data.std(ddof=0)
+
+    # If input GRN has not been given, run one GRN inference call upfront.
     if input_grn is None:
         input_grn = grnboost2(
             expression_data=expression_data,
