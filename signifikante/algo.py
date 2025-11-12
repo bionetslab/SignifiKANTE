@@ -4,6 +4,7 @@ Top-level functions.
 
 import pandas as pd
 from distributed import Client, LocalCluster
+# UPDATE FOR NEW GRN METHOD
 from signifikante.core import (
     create_graph, SGBM_KWARGS, RF_KWARGS, EARLY_STOP_WINDOW_LENGTH, ET_KWARGS, XGB_KWARGS, LASSO_KWARGS
 )
@@ -17,7 +18,7 @@ def signifikante_fdr(
         num_tf_clusters : int = -1,
         target_cluster_mode : str = 'wasserstein',
         tf_cluster_mode : str = 'correlation',
-        input_grn : dict = None,
+        input_grn : pd.DataFrame = None,
         tf_names : list[str] = None,
         target_subset : list[str] = None,
         client_or_address='local',
@@ -105,19 +106,25 @@ def signifikante_fdr(
     for tf, target, importance in zip(input_grn_aligned['TF'], input_grn_aligned['target'], input_grn_aligned['importance']):
         input_grn_dict[(tf, target)] = {'importance': importance}
 
-    # Pass underlying to-be-used GRN inference method.
+    # UPDATE FOR NEW GRN METHOD
     if inference_mode == "grnboost2":
         regressor_type = "GBM"
+        regressor_args = SGBM_KWARGS
     elif inference_mode == "genie3":
         regressor_type = "RF"
+        regressor_args = RF_KWARGS
     elif inference_mode == "extra_trees":
         regressor_type = "ET"
+        regressor_args = ET_KWARGS
     elif inference_mode == "xgboost":
         regressor_type = "XGB"
+        regressor_args = XGB_KWARGS
     elif inference_mode == "lasso":
         regressor_type = "LASSO"
+        regressor_args = LASSO_KWARGS
     else:
         raise ValueError(f"Unknown GRN inference mode: {inference_mode}")
+        
 
     return perform_fdr(
         expression_data_aligned,
@@ -137,6 +144,7 @@ def signifikante_fdr(
         output_dir,
         scale_for_tf_sampling,
         regressor_type,
+        regressor_args,
         apply_bh_correction
     )
 

@@ -38,6 +38,7 @@ def perform_fdr(
         output_dir,
         scale_for_tf_sampling,
         regressor_type,
+        regressor_args,
         apply_bh_correction
 ):
     # Extract TF name and target name lists from expression matrix object.
@@ -110,19 +111,6 @@ def perform_fdr(
             pickle.dump(tf_representatives, f)
         with open(os.path.join(output_dir, 'target_medoids.pkl'), 'wb') as f:
             pickle.dump(target_representatives, f)
-
-    if regressor_type == "GBM":
-        regressor_args = SGBM_KWARGS
-    elif regressor_type == "RF":
-        regressor_args = RF_KWARGS
-    elif regressor_type == "ET":
-        regressor_args = ET_KWARGS
-    elif regressor_type == "XGB":
-        regressor_args = XGB_KWARGS
-    elif regressor_type == "LASSO":
-        regressor_args = LASSO_KWARGS
-    else:
-        raise ValueError(f"Unknown regressor type: {regressor_type}")
 
     fdr_controlled_df = diy_fdr(expression_data=expression_data,
                    regressor_type=regressor_type,

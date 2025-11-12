@@ -41,6 +41,7 @@ dependencies = [
 	"numba",
 	"pytest",
 	"xgboost",
+	"statsmodels"
 ]
 
 
@@ -61,6 +62,7 @@ pyarrow = "*"
 numba = "*"
 pytest = "*"
 xgboost = "*"
+statsmodels = "*"
 
 [tool.pixi.pypi-dependencies]
 # This section remains for pure-Python packages not available or preferred from Conda,
@@ -86,6 +88,7 @@ pyarrow = "*"
 ipykernel = "*"
 numba = "*"
 xgboost="*"
+statsmodels = "*"
 
 
 [tool.pixi.feature.kernel.pypi-dependencies]

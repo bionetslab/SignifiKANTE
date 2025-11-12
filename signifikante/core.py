@@ -68,6 +68,8 @@ XGB_KWARGS = {
 LASSO_KWARGS = {
     'alpha' : 0.01
 }
+# UPDATE FOR NEW GRN METHOD
+
 
 def is_sklearn_regressor(regressor_type):
     """
@@ -172,9 +174,9 @@ def fit_model(regressor_type,
     def do_lasso_regression():
         regressor = Lasso(**regressor_kwargs, random_state=seed)
         regressor.fit(tf_matrix, target_gene_expression)
-        print(tf_matrix, target_gene_expression)
         return regressor
 
+    # UPDATE FOR NEW GRN METHOD
     if is_sklearn_regressor(regressor_type):
         return do_sklearn_regression()
     elif is_xgboost_regressor(regressor_type):
@@ -199,7 +201,7 @@ def to_feature_importances(regressor_type,
     :param trained_regressor: the trained model from which to extract the feature importances.
     :return: the feature importances inferred from the trained model.
     """
-
+    # UPDATE FOR NEW GRN METHOD
     if is_oob_heuristic_supported(regressor_type, regressor_kwargs):
         n_estimators = len(trained_regressor.estimators_)
 
@@ -217,9 +219,8 @@ def to_feature_importances(regressor_type,
             idx = int(k[1:])
             importances[idx] = v
         return importances
-    elif is_lasso_regressor(regressor_type):
+    elif regressor_type.upper() == "LASSO":
         scores = np.abs(trained_regressor.coef_)
-        print(scores)
         return scores
     else:
         return trained_regressor.feature_importances_
