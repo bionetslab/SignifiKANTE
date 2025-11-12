@@ -40,8 +40,8 @@ Create a jupyter kernel using pixi.toml/pyproject.toml, which will install a jup
     pixi run -e kernel install-kernel
 
 
-Example of FDR control
-**********************
+Example workflow of SignifiKANTE's FDR control
+**********************************************
 
 We provide an efficient FDR control for regulatory links based on any given regression-based GRN inference method. Currently, for GRN inference SignifiKANTE includes GRNBoost2, GENIE3, xgboost, and lasso regression. For the integration of further regression-based GRN inference methods, please see our manual in the section below. Here, we also provide a minimal working example of how to use SignifiKANTE based on GRNBoost2 on a simulated dataset:
 
@@ -51,19 +51,23 @@ We provide an efficient FDR control for regulatory links based on any given regr
     import numpy as np
     from signifikante.algo import signifikante_fdr
 
-    # Simulate expression dataset with 100 samples and 10 genes.
-    expression_data = np.random.randn(100, 10)
-    expression_df = pd.DataFrame(expression_data, columns=[f"Gene{i}" for i in range(10)])
-    tf_list = [f"Gene{i}" for i in range(3)]
+    if __name__ == "__main__":
 
-    # Run SignifiKANTE's approximate FDR control.
-    fdr_grn = signifikante_fdr(
-                expression_data=expression_df,
-                cluster_representative_mode="random",
-                num_target_clusters=2,
-                inference_mode="grnboost2",
-                apply_bh_correction=True
-            )
+        # Simulate expression dataset with 100 samples and 10 genes.
+        expression_data = np.random.randn(100, 10)
+        expression_df = pd.DataFrame(expression_data, columns=[f"Gene{i}" for i in range(10)])
+        # Simulate three artificial TFs.
+        tf_list = [f"Gene{i}" for i in range(3)]
+
+        # Run SignifiKANTE's approximate FDR control.
+        fdr_grn = signifikante_fdr(
+                    expression_data=expression_df,
+                    tf_names=tf_list,
+                    cluster_representative_mode="random",
+                    num_target_clusters=2,
+                    inference_mode="grnboost2",
+                    apply_bh_correction=True)
+        print(fdr_grn)
 
 
 Parameter descriptions
