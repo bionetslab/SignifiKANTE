@@ -1,5 +1,5 @@
 
-from signifikante.algo import grnboost2_fdr
+from signifikante.algo import signifikante_fdr
 import numpy as np
 import pandas as pd
 
@@ -15,7 +15,7 @@ def test_signifikante_medoid_tfs_unclustered():
         np.random.poisson(lam=np.random.gamma(shape=2, scale=1, size=(n_cells, n_tfs + n_non_tfs))),
         columns=tfs + non_tfs,
     )
-    grn_fdr_df = grnboost2_fdr(
+    grn_fdr_df = signifikante_fdr(
         expression_data=expr_mat,
         tf_names=tfs,
         num_target_clusters=3,
@@ -36,7 +36,7 @@ def test_signifikante_medoid_tfs_clustered():
         np.random.poisson(lam=np.random.gamma(shape=2, scale=1, size=(n_cells, n_tfs + n_non_tfs))),
         columns=tfs + non_tfs,
     )
-    grn_fdr_df = grnboost2_fdr(
+    grn_fdr_df = signifikante_fdr(
         expression_data=expr_mat,
         tf_names=tfs,
         num_target_clusters=3,
@@ -58,7 +58,7 @@ def test_signifikante_random_tfs_unclustered():
         np.random.poisson(lam=np.random.gamma(shape=2, scale=1, size=(n_cells, n_tfs + n_non_tfs))),
         columns=tfs + non_tfs,
     )
-    grn_fdr_df = grnboost2_fdr(
+    grn_fdr_df = signifikante_fdr(
         expression_data=expr_mat,
         tf_names=tfs,
         num_target_clusters=3,
@@ -79,7 +79,7 @@ def test_signifikante_random_tfs_clustered():
         np.random.poisson(lam=np.random.gamma(shape=2, scale=1, size=(n_cells, n_tfs + n_non_tfs))),
         columns=tfs + non_tfs,
     )
-    grn_fdr_df = grnboost2_fdr(
+    grn_fdr_df = signifikante_fdr(
         expression_data=expr_mat,
         tf_names=tfs,
         num_target_clusters=3,
@@ -101,7 +101,7 @@ def test_signifikante_full():
         np.random.poisson(lam=np.random.gamma(shape=2, scale=1, size=(n_cells, n_tfs + n_non_tfs))),
         columns=tfs + non_tfs,
     )
-    grn_fdr_df = grnboost2_fdr(
+    grn_fdr_df = signifikante_fdr(
         expression_data=expr_mat,
         tf_names=tfs,
         num_target_clusters=3,
