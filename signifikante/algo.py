@@ -1,7 +1,6 @@
 """
 Top-level functions.
 """
-
 import pandas as pd
 from distributed import Client, LocalCluster
 # UPDATE FOR NEW GRN METHOD
@@ -22,11 +21,11 @@ def signifikante_fdr(
         tf_names : list[str] = None,
         target_subset : list[str] = None,
         client_or_address='local',
-        early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
-        seed=None,
-        verbose=False,
-        num_permutations=1000,
-        output_dir=None,
+        early_stop_window_length : int = EARLY_STOP_WINDOW_LENGTH,
+        seed :int = None,
+        verbose : bool = False,
+        num_permutations : int = 1000,
+        output_dir : str =None,
         scale_for_tf_sampling : bool = False,
         inference_mode : str = "grnboost2",
         apply_bh_correction : bool = False,
@@ -163,24 +162,19 @@ def grnboost2(expression_data,
               seed=None,
               verbose=False):
     """
-    Launch signifikante with [GRNBoost2] profile.
+    Run GRNBoost2 GRN inference method.
 
-    :param expression_data: one of:
-           * a pandas DataFrame (rows=observations, columns=genes)
-           * a dense 2D numpy.ndarray
-           * a sparse scipy.sparse.csc_matrix
-    :param gene_names: optional list of gene names (strings). Required when a (dense or sparse) matrix is passed as
-                       'expression_data' instead of a DataFrame.
-    :param tf_names: optional list of transcription factors. If None or 'all', the list of gene_names will be used.
-    :param target_names: optional list of target genes which are used as response variable in the regression model.
-    :param client_or_address: one of:
-           * None or 'local': a new Client(LocalCluster()) will be used to perform the computation.
-           * string address: a new Client(address) will be used to perform the computation.
-           * a Client instance: the specified Client instance will be used to perform the computation.
-    :param early_stop_window_length: early stop window length. Default 25.
-    :param limit: optional number (int) of top regulatory links to return. Default None.
-    :param seed: optional random seed for the regressors. Default None.
-    :param verbose: print info.
+    :param expression_data: Expression matrix stored in either pandas DataFrame (rows=observations, columns=genes),
+            a dense 2D numpy.ndarray, or a sparse scipy.sparse.csc_matrix.
+    :param gene_names: Optional list of gene names. Required when a dense or sparse matrix is passed as
+            expression_data instead of a pandas DataFrame. Defaults to None.
+    :param tf_names: Optional list of transcription factors. If set to None or 'all', the list of gene_names will be used. Defaults to 'all'.
+    :param target_names: Optional list of target genes, which are supposed to be used as target genes in the regression model. Defaults to 'all'.
+    :param client_or_address: Whether to perform computation on given input Dask Cluster object, or to create a new local one ("local"). Defaults to "local".
+    :param early_stop_window_length: Window length for early stopping criteria. Default to 25.
+    :param limit: Optional number of top regulatory links to return. Defaults to None.
+    :param seed: Optional random seed for the regression models. Defaults to None.
+    :param verbose: Whether or not to print detailed additional information. Defaults to False.
     :return: a pandas DataFrame['TF', 'target', 'importance'] representing the inferred gene regulatory links.
     """
 
@@ -198,22 +192,19 @@ def genie3(expression_data,
            seed=None,
            verbose=False):
     """
-    Launch signifikante with [GENIE3] profile.
+    Run GENIE3 GRN inference method.
 
-    :param expression_data: one of:
-           * a pandas DataFrame (rows=observations, columns=genes)
-           * a dense 2D numpy.ndarray
-           * a sparse scipy.sparse.csc_matrix
-    :param gene_names: optional list of gene names (strings). Required when a (dense or sparse) matrix is passed as
-                       'expression_data' instead of a DataFrame.
-    :param tf_names: optional list of transcription factors. If None or 'all', the list of gene_names will be used.
-    :param client_or_address: one of:
-           * None or 'local': a new Client(LocalCluster()) will be used to perform the computation.
-           * string address: a new Client(address) will be used to perform the computation.
-           * a Client instance: the specified Client instance will be used to perform the computation.
-    :param limit: optional number (int) of top regulatory links to return. Default None.
-    :param seed: optional random seed for the regressors. Default None.
-    :param verbose: print info.
+    :param expression_data: Expression matrix stored in either pandas DataFrame (rows=observations, columns=genes),
+            a dense 2D numpy.ndarray, or a sparse scipy.sparse.csc_matrix.
+    :param gene_names: Optional list of gene names. Required when a dense or sparse matrix is passed as
+            expression_data instead of a pandas DataFrame. Defaults to None.
+    :param tf_names: Optional list of transcription factors. If set to None or 'all', the list of gene_names will be used. Defaults to 'all'.
+    :param target_names: Optional list of target genes, which are supposed to be used as target genes in the regression model. Defaults to 'all'.
+    :param client_or_address: Whether to perform computation on given input Dask Cluster object, or to create a new local one ("local"). Defaults to "local".
+    :param early_stop_window_length: Window length for early stopping criteria. Default to 25.
+    :param limit: Optional number of top regulatory links to return. Defaults to None.
+    :param seed: Optional random seed for the regression models. Defaults to None.
+    :param verbose: Whether or not to print detailed additional information. Defaults to False.
     :return: a pandas DataFrame['TF', 'target', 'importance'] representing the inferred gene regulatory links.
     """
 
@@ -229,22 +220,19 @@ def extra_trees(expression_data,
            seed=None,
            verbose=False):
     """
-    Launch signifikante with [extra-tree (ET)] profile.
+    Run extra trees GRN inference method.
 
-    :param expression_data: one of:
-           * a pandas DataFrame (rows=observations, columns=genes)
-           * a dense 2D numpy.ndarray
-           * a sparse scipy.sparse.csc_matrix
-    :param gene_names: optional list of gene names (strings). Required when a (dense or sparse) matrix is passed as
-                       'expression_data' instead of a DataFrame.
-    :param tf_names: optional list of transcription factors. If None or 'all', the list of gene_names will be used.
-    :param client_or_address: one of:
-           * None or 'local': a new Client(LocalCluster()) will be used to perform the computation.
-           * string address: a new Client(address) will be used to perform the computation.
-           * a Client instance: the specified Client instance will be used to perform the computation.
-    :param limit: optional number (int) of top regulatory links to return. Default None.
-    :param seed: optional random seed for the regressors. Default None.
-    :param verbose: print info.
+    :param expression_data: Expression matrix stored in either pandas DataFrame (rows=observations, columns=genes),
+            a dense 2D numpy.ndarray, or a sparse scipy.sparse.csc_matrix.
+    :param gene_names: Optional list of gene names. Required when a dense or sparse matrix is passed as
+            expression_data instead of a pandas DataFrame. Defaults to None.
+    :param tf_names: Optional list of transcription factors. If set to None or 'all', the list of gene_names will be used. Defaults to 'all'.
+    :param target_names: Optional list of target genes, which are supposed to be used as target genes in the regression model. Defaults to 'all'.
+    :param client_or_address: Whether to perform computation on given input Dask Cluster object, or to create a new local one ("local"). Defaults to "local".
+    :param early_stop_window_length: Window length for early stopping criteria. Default to 25.
+    :param limit: Optional number of top regulatory links to return. Defaults to None.
+    :param seed: Optional random seed for the regression models. Defaults to None.
+    :param verbose: Whether or not to print detailed additional information. Defaults to False.
     :return: a pandas DataFrame['TF', 'target', 'importance'] representing the inferred gene regulatory links.
     """
 
@@ -260,22 +248,19 @@ def xgboost(expression_data,
            seed=None,
            verbose=False):
     """
-    Launch signifikante with [xgboost] profile.
+    Run xgboost GRN inference method.
 
-    :param expression_data: one of:
-           * a pandas DataFrame (rows=observations, columns=genes)
-           * a dense 2D numpy.ndarray
-           * a sparse scipy.sparse.csc_matrix
-    :param gene_names: optional list of gene names (strings). Required when a (dense or sparse) matrix is passed as
-                       'expression_data' instead of a DataFrame.
-    :param tf_names: optional list of transcription factors. If None or 'all', the list of gene_names will be used.
-    :param client_or_address: one of:
-           * None or 'local': a new Client(LocalCluster()) will be used to perform the computation.
-           * string address: a new Client(address) will be used to perform the computation.
-           * a Client instance: the specified Client instance will be used to perform the computation.
-    :param limit: optional number (int) of top regulatory links to return. Default None.
-    :param seed: optional random seed for the regressors. Default None.
-    :param verbose: print info.
+    :param expression_data: Expression matrix stored in either pandas DataFrame (rows=observations, columns=genes),
+            a dense 2D numpy.ndarray, or a sparse scipy.sparse.csc_matrix.
+    :param gene_names: Optional list of gene names. Required when a dense or sparse matrix is passed as
+            expression_data instead of a pandas DataFrame. Defaults to None.
+    :param tf_names: Optional list of transcription factors. If set to None or 'all', the list of gene_names will be used. Defaults to 'all'.
+    :param target_names: Optional list of target genes, which are supposed to be used as target genes in the regression model. Defaults to 'all'.
+    :param client_or_address: Whether to perform computation on given input Dask Cluster object, or to create a new local one ("local"). Defaults to "local".
+    :param early_stop_window_length: Window length for early stopping criteria. Default to 25.
+    :param limit: Optional number of top regulatory links to return. Defaults to None.
+    :param seed: Optional random seed for the regression models. Defaults to None.
+    :param verbose: Whether or not to print detailed additional information. Defaults to False.
     :return: a pandas DataFrame['TF', 'target', 'importance'] representing the inferred gene regulatory links.
     """
 
@@ -291,22 +276,19 @@ def lasso(expression_data,
            seed=None,
            verbose=False):
     """
-    Launch signifikante with [lasso] profile.
+    Run lasso-regression based GRN inference method.
 
-    :param expression_data: one of:
-           * a pandas DataFrame (rows=observations, columns=genes)
-           * a dense 2D numpy.ndarray
-           * a sparse scipy.sparse.csc_matrix
-    :param gene_names: optional list of gene names (strings). Required when a (dense or sparse) matrix is passed as
-                       'expression_data' instead of a DataFrame.
-    :param tf_names: optional list of transcription factors. If None or 'all', the list of gene_names will be used.
-    :param client_or_address: one of:
-           * None or 'local': a new Client(LocalCluster()) will be used to perform the computation.
-           * string address: a new Client(address) will be used to perform the computation.
-           * a Client instance: the specified Client instance will be used to perform the computation.
-    :param limit: optional number (int) of top regulatory links to return. Default None.
-    :param seed: optional random seed for the regressors. Default None.
-    :param verbose: print info.
+    :param expression_data: Expression matrix stored in either pandas DataFrame (rows=observations, columns=genes),
+            a dense 2D numpy.ndarray, or a sparse scipy.sparse.csc_matrix.
+    :param gene_names: Optional list of gene names. Required when a dense or sparse matrix is passed as
+            expression_data instead of a pandas DataFrame. Defaults to None.
+    :param tf_names: Optional list of transcription factors. If set to None or 'all', the list of gene_names will be used. Defaults to 'all'.
+    :param target_names: Optional list of target genes, which are supposed to be used as target genes in the regression model. Defaults to 'all'.
+    :param client_or_address: Whether to perform computation on given input Dask Cluster object, or to create a new local one ("local"). Defaults to "local".
+    :param early_stop_window_length: Window length for early stopping criteria. Default to 25.
+    :param limit: Optional number of top regulatory links to return. Defaults to None.
+    :param seed: Optional random seed for the regression models. Defaults to None.
+    :param verbose: Whether or not to print detailed additional information. Defaults to False.
     :return: a pandas DataFrame['TF', 'target', 'importance'] representing the inferred gene regulatory links.
     """
 
