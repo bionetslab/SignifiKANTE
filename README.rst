@@ -5,6 +5,7 @@ SignifiKANTE
 
 SignifiKANTE builds upon the arboreto_ software library to enable regression-based gene regulatory network inference and efficient, permutation-based empirical *P*-value computation for predicted regulatory links. Our method is described in detail on bioRxiv (TODO).
 
+
 Quick install
 *************
 
@@ -38,8 +39,9 @@ Create a jupyter kernel using pixi.toml/pyproject.toml, which will install a jup
     cd SignifiKANTE
     pixi run -e kernel install-kernel
 
-FDR control
-***********
+
+Example of FDR control
+**********************
 
 We provide an efficient FDR control for regulatory links based on any given regression-based GRN inference method. Currently, for GRN inference SignifiKANTE includes GRNBoost2, GENIE3, xgboost, and lasso regression. For the integration of further regression-based GRN inference methods, please see our manual in the section below. Here, we also provide a minimal working example of how to use SignifiKANTE based on GRNBoost2 on a simulated dataset:
 
@@ -63,7 +65,38 @@ We provide an efficient FDR control for regulatory links based on any given regr
                 apply_bh_correction=True
             )
 
-A more detailed description of the parameters of the :code:`signifikante_fdr` function can be found in the respective docstring.
+
+Parameter descriptions
+**********************
+
+Below, you can find a more detailed description of the parameters of SignifiKANTE's central function for FDR control :code:`signifikante_fdr`. The two absolutely necessary input parameters are:
+
+- :code:`expression_data [pd.DataFrame]`: Expression matrix with genes as columns and samples as rows.
+- :code:`cluster_representative_mode [str]`: How to draw representatives from target gene clusters. Can be one of "random" or "medoid" for approximate P-value computation, or "all_genes" for exact (DIANE-like) P-values.
+
+Additional parameters of SignifiKANTE's FDR control:
+
+
+- :code:`inference_mode [str]`: Which GRN inference method to use under the hood. Can be one of "grnboost2", "genie3", "xgboost", and "lasso". Defaults to "grnboost2".
+- :code:`num_permutations [int]`: How many permutations to perform for random background model for empirical P-value computation. Defaults to 1000.
+- :code:`tf_names [list]`: List of strings representing TF names. Should be subset of gene names contained in :code:`expression_data`. Defaults to None. If no list is given, all genes are treated as potential TFs.
+- :code:`apply_bh_correction [bool]`: Whether or not to additionally return Benjamini-Hochberg adjusted P-values.
+- :code:`input_grn [pd.DataFrame]`: Reference GRN to use for FDR control. Needs to possess columns 'TF', 'target', 'importance'. Should only be used, when it is clear that this GRN is inferred using the same method indicated in :code:`inference_mode`. Defaults to None. If no reference GRN is given, a new one is inferred in the beginning.
+- :code:`target_subset [list]`: Subset of target genes to consider for FDR control. Only compatible with "all_genes" FDR mode.
+- :code:`num_target_clusters [int]`: Number of target gene clusters. If set to -1, no target gene clustering will be applied. Defaults to -1.
+- :code:`num_tf_clusters [int]`: Experimental feature. Used for setting the number of desired TF clusters, if set to -1, no TF clustering will be applied. Defaults to -1.
+- :code:`target_cluster_mode [str]`: Experimental feature. Indicates, which clustering to use for target gene clustering. Defaults to "wasserstein".
+- :code:`tf_cluster_mode [str]`: Experimental feature. Indicates, which clustering mode to use for TF clustering. Defaults to "correlation".
+- :code:`scale_for_tf_sampling [bool]`: Experimental feature. Whether or not to keep track of occurences of edges in permuted GRNs. Defaults to False.
+
+Further more technical parameters:
+
+- :code:`client [str,Dask.Client]`: Whether to perform computation on given input Dask Cluster object, or to create a new local one ("local"). Defaults to "local".
+- :code:`early_stop_window_length [int]`: Window length to use for early stopping. Defaults to 25.
+- :code:`seed [int]`: Random seed for regressor models. Defaults to None.
+- :code:`verbose [bool]`: Whether or not to print detailed additional information. Defaults to False.
+- :code:`output_dir [str]`: Where to save additional intermediate data to. Defaults to None, i.e. saves no intermediate results.
+
 
 Integration of additional regression-based GRN inference methods
 ****************************************************************
@@ -134,6 +167,7 @@ Finally, in the function :code:`to_feature_importances`, you have to implement t
         return scores
 
 Done, you have successfully added your new desired regression method for GRN inference!
+
 
 License
 *******
