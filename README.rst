@@ -178,3 +178,14 @@ Finally, in the function :code:`to_feature_importances`, you have to implement t
         return scores
 
 Done, you have successfully added your new desired regression method for GRN inference!
+
+Unit tests
+**********
+
+Unit tests for arboreto-based functionalities, as well as additional tests for SignifiKANTE's FDR control functionality and a comparison of our efficiently parallelized Wasserstein-distance computation against SciPy can be found under :code:`tests/`. The tests are based on Python's unittest module, and can be run all-together from the repository's root-directory with
+
+.. code-block:: bash
+
+    python -m unittest discover -s tests -v
+
+    
