@@ -42,7 +42,7 @@ dependencies = [
 	"pytest",
 	"xgboost",
 	"statsmodels",
-	"sparse<0.15"
+	"sparse"
 ]
 
 
