@@ -29,8 +29,3 @@ jobs:
     - name: Run tests
       run: python -m unittest discover -s tests -v
 
-    # This step is key for the badge
-    - name: Publish Test Status
-      if: always() # Run even if tests fail to publish the result
-      uses: actions/upload-artifact/retention-policy@v4 # This specific action isn't strictly needed for the default status badge, but good practice.
-      # The standard GitHub action run status is what provides the badge.
