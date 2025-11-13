@@ -3,7 +3,7 @@ SignifiKANTE
 
 .. _arboreto: https://arboreto.readthedocs.io
 
-SignifiKANTE builds upon the arboreto_ software library to enable regression-based gene regulatory network inference and efficient, permutation-based empirical *P*-value computation for predicted regulatory links. Our method is described in detail on bioRxiv (TODO).
+SignifiKANTE builds upon the arboreto_ software library to enable regression-based gene regulatory network inference and efficient, permutation-based empirical *P*-value computation for predicted regulatory links.
 
 .. contents::
    :local:
