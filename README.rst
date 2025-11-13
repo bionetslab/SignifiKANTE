@@ -6,7 +6,9 @@
    :target: PyPI Version_
    :alt: PyPI Version
 
-.. _Python Tests Status: https://github.com/bionetslab/SignifiKANTE/actions/workflows/python-tests.yml  .. _PyPI Version: https://pypi.org/project/signifikante/
+.. _Python Tests Status: https://github.com/bionetslab/SignifiKANTE/actions/workflows/python-tests.yml  
+
+.. _PyPI Version: https://pypi.org/project/signifikante/
 
 SignifiKANTE
 ============
