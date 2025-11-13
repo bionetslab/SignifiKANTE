@@ -6,9 +6,16 @@
    :target: PyPI Version_
    :alt: PyPI Version
 
+.. |code-coverage-badge| image:: coverage.svg
+   :alt: Code Coverage
+   :target: https://github.com/bionetslab/SignifiKANTE/actions/workflows/python-tests.yml
+
 .. _Python Tests Status: https://github.com/bionetslab/SignifiKANTE/actions/workflows/python-tests.yml  
 
 .. _PyPI Version: https://pypi.org/project/signifikante/
+
+|code-coverage-badge|
+
 
 SignifiKANTE
 ============

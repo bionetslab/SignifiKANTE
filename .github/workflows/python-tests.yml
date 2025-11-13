@@ -1,31 +1,38 @@
-name: Python Tests
-
-on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # <-- REQUIRED: Allows the action to commit the badge SVG
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        # Fetch history for commit step
+        with:
+          fetch-depth: 0 # IMPORTANT: Ensures full history for committing changes
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
-    - name: Install dependencies
-      run: |
-        # Install your package and any test requirements
-        python -m pip install --upgrade pip
-        pip install -e . # Assuming you have a setup.py or pyproject.toml
-        # If you have a separate requirements-test.txt:
-        # pip install -r requirements-test.txt
+      - name: Install dependencies and coverage
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . 
+          pip install coverage
 
-    - name: Run tests
-      run: python -m unittest discover -s tests -v
+      - name: Run tests and collect coverage
+        run: coverage run --include="signifikante/*" -m unittest discover -s tests -v
+
+      - name: Generate Coverage Badge 🖼️
+        # This action reads the .coverage file and creates coverage.svg
+        uses: tj-actions/coverage-badge-py@v2 
+
+      - name: Commit and Push Badge
+        # Only commit the change if a badge file was created/updated
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'CI: update coverage badge'
+          files: coverage.svg
 
