@@ -1,3 +1,11 @@
+name: Python Tests
+
+on:
+  push:
+    branches: [ main, master ] # Run on pushes to main or master branches
+  pull_request:
+    branches: [ main, master ] # Optionally, run on pull requests
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -7,7 +15,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        # Fetch history for commit step
         with:
           fetch-depth: 0 # IMPORTANT: Ensures full history for committing changes
 
@@ -19,15 +26,14 @@ jobs:
       - name: Install dependencies and coverage
         run: |
           python -m pip install --upgrade pip
-          pip install -e . 
+          pip install -e .
           pip install coverage
 
       - name: Run tests and collect coverage
         run: coverage run --include="signifikante/*" -m unittest discover -s tests -v
 
-      - name: Generate Coverage Badge 🖼️
-        # This action reads the .coverage file and creates coverage.svg
-        uses: tj-actions/coverage-badge-py@v2 
+      - name: Generate Coverage Badge
+        uses: tj-actions/coverage-badge-py@v2
 
       - name: Commit and Push Badge
         # Only commit the change if a badge file was created/updated
