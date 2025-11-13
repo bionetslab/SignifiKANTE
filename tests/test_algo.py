@@ -13,7 +13,6 @@ from os.path import join
 from signifikante.algo import _prepare_input, _prepare_client
 from signifikante.algo import grnboost2, genie3
 from signifikante.utils import *
-from tests import resources_path
 
 
 class PrepareClientTest(TestCase):
@@ -61,8 +60,8 @@ class PrepareClientTest(TestCase):
         self.assertIn('Invalid client specified', str(context.exception))
 
 
-zeisel_small_path = join(resources_path, 'sparse/zeisel_small.tsv')
-zeisel_tfs_path = join(resources_path, 'sparse/zeisel_tfs.txt')
+zeisel_small_path = 'tests/sparse/zeisel_small.tsv'
+zeisel_tfs_path = 'tests/sparse/zeisel_tfs.txt'
 
 df = pd.read_csv(zeisel_small_path, sep='\t')
 tfs = load_tf_names(zeisel_tfs_path)
