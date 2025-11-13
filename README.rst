@@ -2,7 +2,11 @@
    :target: Python Tests Status_
    :alt: Python Tests Status
 
-.. _Python Tests Status: https://github.com/bionetslab/SignifiKANTE/actions/workflows/python-tests.yml
+.. image:: https://img.shields.io/pypi/v/signifikante.svg
+   :target: PyPI Version_
+   :alt: PyPI Version
+
+.. _Python Tests Status: https://github.com/bionetslab/SignifiKANTE/actions/workflows/python-tests.yml  .. _PyPI Version: https://pypi.org/project/signifikante/
 
 SignifiKANTE
 ============
