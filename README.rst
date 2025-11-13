@@ -1,7 +1,14 @@
+.. image:: https://github.com/bionetslab/SignifiKANTE/actions/workflows/python-tests.yml/badge.svg
+   :target: Python Tests Status_
+   :alt: Python Tests Status
+
+.. _Python Tests Status: https://github.com/bionetslab/SignifiKANTE/actions/workflows/python-tests.yml
+
 SignifiKANTE
 ============
 
 .. _arboreto: https://arboreto.readthedocs.io
+
 
 SignifiKANTE builds upon the arboreto_ software library to enable regression-based gene regulatory network inference and efficient, permutation-based empirical *P*-value computation for predicted regulatory links.
 
