@@ -9,7 +9,7 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from sklearn_extra.cluster import KMedoids
 
-@njit(nopython=True, nogil=True)
+@njit(nogil=True)
 def _merge_sorted_arrays(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     """
     Merge two sorted 1D NumPy arrays into a single sorted array.
@@ -33,7 +33,7 @@ def _merge_sorted_arrays(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return out
 
 
-@njit(nopython=True, parallel=True, nogil=True)
+@njit(parallel=True, nogil=True)
 def _pairwise_wasserstein_dists(sorted_matrix: np.ndarray, num_threads: int) -> np.ndarray:
     """
     Compute the pairwise 1D Wasserstein distances between all columns of a sorted matrix.

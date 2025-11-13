@@ -138,7 +138,7 @@ def perform_fdr(
         fdr_controlled_df.drop(columns=['count'], inplace=True)
         fdr_controlled_df.drop(columns=['shuffled_occurences'], inplace=True)
     if apply_bh_correction:
-        fdr_controlled_df['pval_bh'] = multipletests(fdr_controlled_df['pvalue'], method='fdr_bh')[1]
+        fdr_controlled_df['pvalue_bh'] = multipletests(fdr_controlled_df['pvalue'], method='fdr_bh')[1]
     
     return fdr_controlled_df
 
@@ -297,64 +297,6 @@ def create_graph_fdr(expression_matrix: np.ndarray,
     :return: if include_meta is False, returns a Dask graph that computes the links DataFrame.
              If include_meta is True, returns a tuple: the links DataFrame and the meta DataFrame.
     """
-    '''
-    4 cases
-    A) TF matrix (normal) + medoid gene expression VECTOR (TFs are passed as is)
-    Pass variables
-        - full TF matrix
-        - subset target gene expression matrix (medoid)
-        - per target cluster: input GRN subsetted to all target gene represented by the medoid 
-    Loop logic the same.
-    Counting logic must be modified in infer_partial_network:
-        Count logic A.
-        - for every edge in input_grn:
-            iterate over all edges in input grn and compare importance values for every edge with permuted importance value.
-            It does not matter whether it is TF or medoid, because the input GRN is already subset to only include the 
-            relevant edges.
-
-    B) TF matrix (normal) + sampling gene expression MATRIX
-    Pass variables
-        - full TF matrix
-        - gex_mat: subset target gene expression matrix (submatrix containing all genes in the cluster)
-        - per target cluster: input GRN subsetted to all target genes in the cluster
-    Loop logic needs to be modified: We need to loop over/'sample from' gex_mat and permute the current vector of gene expression
-    Count logic: Count logic A
-
-    C) TF matrix clustered medoid + medioid gene expression VECTOR
-    Conceptual output: Edge between TF cluster and target gene cluster
-    Pass variables:
-        - medoid TF matrix (only medioid TFs can be targets)
-        - subset target gene expression matrix (medoid)
-        - per target cluster and TF cluster: input GRN subsetted to all trancription factors 
-            and target genes represented by the medoid tfs and target medoids.
-    Loop logic: same as A
-    Count logic C: For every edge in input_GRN increase counter if permuted value is larger that input value.
-
-    D) TF matrix clustered sampling + sampleing gene expression MATRIX
-    Pass variables:
-        - Full TF matrix + cluster information (shared globally with all nodes in dansk)
-        - gex_mat: subset target gene expression matrix (submatrix containing all genes in the cluster)
-        - per target cluster: input GRN subsetted to all target genes in the cluster
-    Loop logic needs to be modified: 
-    in each iteration
-     -  over/'sample from' gex_mat and permute the current vector of gene expression
-     -  sample one TF per TF cluster as predictors.
-    Count logic: count logic C
-
-    Functions we want to implement:
-
-    Groundtruth = everything is singleton cluster
-    1) Subset input_grn: get the relevant tf-target edges. takes lists as input, TFs always all
-        targets always the ones represented by the current medioid (A+c)/present in the current cluster (B+C)
-
-    2) Counting logic: takes input GRN, shuffled GNR and mappings between clusters and genes for genes and/or TFs.
-
-    3) Two versions of infer_partial network one for A+C and one for B+D
-
-    4) Reset GRNboost to standard for input_GRN computation and create alternative versions for FDR functionalities with different names.
-
-
-    '''
     assert client, "Client not given, but is required in create_graph_fdr!"
     # Extract FDR mode information from TF and non-TF representative lists.
     fdr_mode = None
@@ -368,7 +310,6 @@ def create_graph_fdr(expression_matrix: np.ndarray,
         fdr_mode = 'medoid'
     else:  # Full FDR mode coincides with medoid mode, with all genes assigned to dummy singleton clusters.
         fdr_mode = 'medoid'
-        print("Running full FDR mode...")
         tf_to_cluster = {gene: cluster_id for cluster_id, gene in
                            enumerate(tf_representatives)}
         target_to_cluster = {gene: cluster_id for cluster_id, gene in
