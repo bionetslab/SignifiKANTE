@@ -1,0 +1,36 @@
+name: Python Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        # Install your package and any test requirements
+        python -m pip install --upgrade pip
+        pip install -e . # Assuming you have a setup.py or pyproject.toml
+        # If you have a separate requirements-test.txt:
+        # pip install -r requirements-test.txt
+
+    - name: Run tests
+      run: python -m unittest discover -s tests -v
+
+    # This step is key for the badge
+    - name: Publish Test Status
+      if: always() # Run even if tests fail to publish the result
+      uses: actions/upload-artifact/retention-policy@v4 # This specific action isn't strictly needed for the default status badge, but good practice.
+      # The standard GitHub action run status is what provides the badge.
