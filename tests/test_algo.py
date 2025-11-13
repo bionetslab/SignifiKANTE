@@ -11,7 +11,7 @@ from distributed import Client, LocalCluster
 from os.path import join
 
 from signifikante.algo import _prepare_input, _prepare_client
-from signifikante.algo import grnboost2, genie3
+from signifikante.algo import grnboost2, genie3, extra_trees, xgboost, lasso
 from signifikante.utils import *
 
 
@@ -125,3 +125,22 @@ class LaunchTests(TestCase):
         network_df = genie3(df, tf_names=tfs)
 
         self.assertGreater(len(network_df), 100)
+        
+    def test_launch_extra_trees(self):
+        network_df = extra_trees(df, tf_names=tfs)
+        self.assertGreater(len(network_df), 100)
+        
+    def test_launch_xgboost(self):
+        network_df = xgboost(df, tf_names=tfs)
+        self.assertGreater(len(network_df), 100)
+        
+    def test_launch_xgboost(self):
+        network_df = lasso(df, tf_names=tfs, verbose=True)
+        self.assertGreater(len(network_df), 100)
+        
+    def test_launch_lasso_with_local_client(self):
+        lc = LocalCluster(diagnostics_port=None)
+        passed = Client(lc)
+        network_df = lasso(df, tf_names=tfs, client_or_address=passed)
+        self.assertGreater(len(network_df), 100) 
+    

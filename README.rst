@@ -1,20 +1,16 @@
-.. image:: https://github.com/bionetslab/SignifiKANTE/actions/workflows/python-tests.yml/badge.svg
-   :target: Python Tests Status_
+.. |tests| image:: https://github.com/bionetslab/SignifiKANTE/actions/workflows/python-tests.yml/badge.svg
+   :target: https://github.com/bionetslab/SignifiKANTE/actions/workflows/python-tests.yml
    :alt: Python Tests Status
 
-.. image:: https://img.shields.io/pypi/v/signifikante.svg
-   :target: PyPI Version_
+.. |pypi| image:: https://img.shields.io/pypi/v/signifikante.svg
+   :target: https://pypi.org/project/signifikante/
    :alt: PyPI Version
 
-.. |code-coverage-badge| image:: coverage.svg
-   :alt: Code Coverage
+.. |coverage| image:: coverage.svg
    :target: https://github.com/bionetslab/SignifiKANTE/actions/workflows/python-tests.yml
+   :alt: Code Coverage
 
-.. _Python Tests Status: https://github.com/bionetslab/SignifiKANTE/actions/workflows/python-tests.yml  
-
-.. _PyPI Version: https://pypi.org/project/signifikante/
-
-|code-coverage-badge|
+|tests| |coverage| |pypi|
 
 
 SignifiKANTE
