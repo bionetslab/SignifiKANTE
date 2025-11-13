@@ -5,9 +5,13 @@ SignifiKANTE
 
 SignifiKANTE builds upon the arboreto_ software library to enable regression-based gene regulatory network inference and efficient, permutation-based empirical *P*-value computation for predicted regulatory links. Our method is described in detail on bioRxiv (TODO).
 
+.. contents::
+   :local:
+   :depth: 2
 
-Quick install
-*************
+
+Installation
+************
 
 SignifiKANTE is installable via pip from PyPI using
 
