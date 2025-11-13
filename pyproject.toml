@@ -41,7 +41,8 @@ dependencies = [
 	"numba",
 	"pytest",
 	"xgboost",
-	"statsmodels"
+	"statsmodels",
+	"sparse<0.15"
 ]
 
 
@@ -63,6 +64,7 @@ numba = "*"
 pytest = "*"
 xgboost = "*"
 statsmodels = "*"
+sparse = "*"
 
 [tool.pixi.pypi-dependencies]
 # This section remains for pure-Python packages not available or preferred from Conda,
@@ -89,6 +91,7 @@ ipykernel = "*"
 numba = "*"
 xgboost="*"
 statsmodels = "*"
+sparse = "*"
 
 
 [tool.pixi.feature.kernel.pypi-dependencies]
