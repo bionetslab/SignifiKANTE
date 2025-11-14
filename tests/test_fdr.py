@@ -1,6 +1,8 @@
 
 from unittest import TestCase
 from signifikante.algo import signifikante_fdr, grnboost2
+from signifikante.core import SGBM_KWARGS
+from signifikante.fdr import count_computation_medoid_representative, count_computation_sampled_representative
 from signifikante.fdr_utils import compute_wasserstein_distance_matrix
 from distributed import LocalCluster, Client
 from scipy.stats import wasserstein_distance
@@ -188,59 +190,147 @@ class TestParallelizedFunctions(TestCase):
         DEMON_SEED = 42
 
         # --- 1. Regression Parameters ---
-        regressor_type = 'SGBM'
-        regressor_kwargs = "SGBM_KWARGS"
+        regressor_type = 'GBM'
+        regressor_kwargs = SGBM_KWARGS
 
         # --- 2. TF Expression Data ---
         # A matrix with 3 samples (rows) and 3 potential TFs (columns).
         # Note: 'TF3' is intentionally the 'target_gene_name' to test the `clean` step.
         tf_matrix = np.array([
-            [1.0, 5.0, 10.0],
-            [2.0, 6.0, 11.0],
-            [3.0, 7.0, 12.0]
+            [1.0, 5.0, 10.1],
+            [2.4, 6.1, 11.0],
+            [3.0, 7.6, 12.0],
+            [2.5, 4.5, 13.2]
         ], dtype=np.float64)
         tf_matrix_gene_names = ['TF1', 'TF2', 'TF3']
         are_tfs_clustered = False  # Set to False to test the cleaning step
 
         # --- 3. Target Gene Data ---
-        target_gene_name = 'TF3' # This TF is also the target gene
-        target_gene_expression = np.array([10.0, 11.0, 12.0], dtype=np.float64)
+        target_gene_name = 'target1' # This TF is also the target gene
+        target_gene_expression = np.array([9.7, 11.2, 15.2, 2.4], dtype=np.float64)
 
         # --- 4. Gene Regulatory Network (GRN) Links to be Tested ---
         # This dictionary contains the actual importance values (e.g., from the non-shuffled run).
         # The function will initialize 'count' and 'shuffled_occurences' keys on these.
         partial_input_grn = {
-            ('TF1', 'TF3'): {'importance': 0.75},
-            ('TF2', 'TF3'): {'importance': 0.25}
+            ('TF1', 'target1'): {'importance': 0.75},
+            ('TF2', 'target1'): {'importance': 0.25},
+            ('TF3', 'target1'): {'importance': 0.35}
         }
 
         # --- 5. Clustering and Scaling Parameters (Set to defaults/empty for non-clustered test) ---
         per_target_importance_sums = {}
-        tf_to_cluster = {}
-        cluster_to_tf = {}
+        tf_to_cluster = {'TF1' : 0, 'TF2': 1, 'TF3': 2}
+        cluster_to_tf = {0 : 'TF1', 1: 'TF2', 2: 'TF3'}
 
         # --- 6. Permutations and Options ---
-        n_permutations = 2 # Use a small number for fast testing
+        n_permutations = 3 # Use a small number for fast testing
         early_stop_window_length = EARLY_STOP_WINDOW_LENGTH
         seed = DEMON_SEED
         scale_for_tf_sampling = False
         
-        result_df = count_computation_medoid_representative(
+        count_computation_medoid_representative(
+            regressor_type=regressor_type,
+            regressor_kwargs=regressor_kwargs,
+            tf_matrix=tf_matrix,
+            are_tfs_clustered=are_tfs_clustered,
+            tf_matrix_gene_names=tf_matrix_gene_names,
+            target_gene_name=target_gene_name,
+            target_gene_expression=target_gene_expression,
+            partial_input_grn=partial_input_grn,
+            per_target_importance_sums=per_target_importance_sums,
+            tf_to_cluster=tf_to_cluster,
+            cluster_to_tf=cluster_to_tf,
+            n_permutations=n_permutations,
+            early_stop_window_length=early_stop_window_length,
+            seed=seed,
+            output_dir=None,
+            scale_for_tf_sampling=scale_for_tf_sampling
+        )
+        
+    def test_random_sampling(self):
+        # --- Constants (Implied by function signature) ---
+        EARLY_STOP_WINDOW_LENGTH = 10
+        DEMON_SEED = 42
+
+        # --- 1. Cluster and Regression Parameters ---
+        cluster_id = 0 # ID of the target cluster being processed
+        regressor_type = 'GBM'
+        regressor_kwargs = SGBM_KWARGS
+
+        # --- 2. TF and Target Expression Data ---
+        tf_matrix = np.array([
+            [10.0, 20.0, 30.0],
+            [11.0, 21.0, 31.0],
+            [12.0, 22.0, 32.0],
+            [13.0, 23.0, 33.0],
+            [14.0, 24.0, 34.0]
+        ], dtype=np.float64)
+
+        # Gene names corresponding to tf_matrix columns
+        tf_matrix_gene_names = ['TF1', 'TF2', 'TF3']
+
+        # --- 3. Target Gene Cluster Information ---
+        # Target genes within this cluster, and their indices in the full tf_matrix
+        target_gene_names = ['target1', 'target2']
+        target_gene_idxs = [0, 1] 
+        target_gene_expressions = np.array([
+            [10.0, 25.0, 30.0, 40.0],
+            [15.0, 21.0, 31.0, 41.0],
+            [10.0, 22.0, 34.0, 40.0],
+            [10.0, 21.0, 39.0, 48.0],
+            [14.0, 24.0, 34.0, 40.0]
+        ], dtype=np.float64)
+
+        # --- 4. TF Cluster Information (Required for sampling and scaling) ---
+        cluster_to_tfs = None
+
+        # Mapping TFs back to their cluster IDs
+        tf_to_cluster = {
+            'TF1': 0, 'TF2': 1, 'TF3': 2
+        }
+
+        # --- 5. GRN Links to be Tested ---
+        partial_input_grn = {
+            ('TF1', 'target1'): {'importance': 0.9},
+            ('TF1', 'target2'): {'importance': 0.1},
+            ('TF2', 'target1'): {'importance': 0.5},
+            ('TF3', 'target2'): {'importance': 0.5}
+        }
+
+        # --- 6. Importance Sums (Used for scaling in the clustered path) ---
+        # Sum of actual importance values for each target in the GRN.
+        per_target_importance_sums = {
+            'target1': 1.0, # 0.9 + 0.1
+            'target2': 1.0  # 0.5 + 0.5
+        }
+
+        # --- 7. Permutations and Options ---
+        n_permutations = 3
+        early_stop_window_length = EARLY_STOP_WINDOW_LENGTH
+        seed = DEMON_SEED
+        output_dir = None
+        scale_for_tf_sampling = False
+        
+        count_computation_sampled_representative(
+        cluster_id=cluster_id,
         regressor_type=regressor_type,
         regressor_kwargs=regressor_kwargs,
         tf_matrix=tf_matrix,
-        are_tfs_clustered=are_tfs_clustered,
         tf_matrix_gene_names=tf_matrix_gene_names,
-        target_gene_name=target_gene_name,
-        target_gene_expression=target_gene_expression,
+        cluster_to_tfs=cluster_to_tfs,
+        target_gene_names=target_gene_names,
+        target_gene_idxs=target_gene_idxs,
+        target_gene_expressions=target_gene_expressions,
         partial_input_grn=partial_input_grn,
-        per_target_importance_sums=per_target_importance_sums,
         tf_to_cluster=tf_to_cluster,
-        cluster_to_tf=cluster_to_tf,
+        per_target_importance_sums=per_target_importance_sums,
         n_permutations=n_permutations,
         early_stop_window_length=early_stop_window_length,
         seed=seed,
-        output_dir=None,
+        output_dir=output_dir,
         scale_for_tf_sampling=scale_for_tf_sampling
-)
+    )
+        
+        
 
