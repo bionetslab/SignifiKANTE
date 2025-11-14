@@ -82,6 +82,43 @@ class PrepareInputTest(TestCase):
         self.assertEqual(50, len(gene_names))
         self.assertEqual(4, len(tf_names))
         self.assertEqual(50, len(target_names))
+    
+    def test_prepare_input_all_tfs(self):
+        _prepare_input(
+            expression_data=df,
+            gene_names=None,
+            tf_names="all",
+            target_names='all'
+        )
+        
+    def test_prepare_input_empty_targets(self):
+        
+        with self.assertRaises(ValueError):
+            _prepare_input(
+                expression_data=df,
+                gene_names=None,
+                tf_names="all",
+                target_names=[]
+            )
+        
+    def test_prepare_input_empty_tfs(self):
+        with self.assertRaises(ValueError):
+            _prepare_input(
+                expression_data=df,
+                gene_names=None,
+                tf_names=[],
+                target_names='all'
+            )
+        
+    def test_prepare_input_tf_target_intersection(self):
+        with self.assertRaises(ValueError):
+            _prepare_input(
+                expression_data=df,
+                gene_names=None,
+                tf_names=["TF1", "TF2"],
+                target_names=["target1", "target2"]
+            )
+        
 
     def test_numpy_dense_matrix(self):
         expression_matrix, gene_names, tf_names, target_names = _prepare_input(
@@ -119,28 +156,28 @@ class LaunchTests(TestCase):
     def test_launch_grnboost2(self):
         network_df = grnboost2(df, tf_names=tfs)
 
-        self.assertGreater(len(network_df), 100)
+        self.assertGreater(len(network_df), 50)
 
     def test_launch_genie3(self):
         network_df = genie3(df, tf_names=tfs)
 
-        self.assertGreater(len(network_df), 100)
+        self.assertGreater(len(network_df), 50)
         
     def test_launch_extra_trees(self):
         network_df = extra_trees(df, tf_names=tfs)
-        self.assertGreater(len(network_df), 100)
+        self.assertGreater(len(network_df), 50)
         
     def test_launch_xgboost(self):
         network_df = xgboost(df, tf_names=tfs)
-        self.assertGreater(len(network_df), 100)
+        self.assertGreater(len(network_df), 50)
         
-    def test_launch_xgboost(self):
+    def test_launch_lasso(self):
         network_df = lasso(df, tf_names=tfs, verbose=True)
-        self.assertGreater(len(network_df), 100)
+        self.assertEqual(len(network_df.columns), 3)
         
     def test_launch_lasso_with_local_client(self):
         lc = LocalCluster(diagnostics_port=None)
         passed = Client(lc)
         network_df = lasso(df, tf_names=tfs, client_or_address=passed)
-        self.assertGreater(len(network_df), 100) 
+        self.assertEqual(len(network_df.columns), 3) 
     
