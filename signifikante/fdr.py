@@ -1,12 +1,12 @@
 
 import copy
 from signifikante.core import (
-    EARLY_STOP_WINDOW_LENGTH, SGBM_KWARGS, DEMON_SEED, to_tf_matrix, target_gene_indices, clean, fit_model, 
-    to_links_df, RF_KWARGS, ET_KWARGS, XGB_KWARGS, LASSO_KWARGS
+    EARLY_STOP_WINDOW_LENGTH, DEMON_SEED, to_tf_matrix, target_gene_indices, clean, fit_model, 
+    to_links_df
 )
 from signifikante.fdr_utils import (
     compute_correlation_distance_matrix, compute_wasserstein_distance_matrix, cluster_genes_to_dict, 
-    merge_gene_clusterings, compute_medoids, partition_input_grn, invert_tf_to_cluster_dict, count_helper, 
+    partition_input_grn, invert_tf_to_cluster_dict, count_helper, 
     subset_tf_matrix, _prepare_client, _prepare_input
 )
 import numpy as np
@@ -42,7 +42,7 @@ def perform_fdr(
         apply_bh_correction
 ):
     # Extract TF name and target name lists from expression matrix object.
-    _, gene_names, tf_names = _prepare_input(expression_data, None, tf_names)
+    _, gene_names, tf_names, _ = _prepare_input(expression_data, None, tf_names, "all")
     non_tf_names = [gene for gene in gene_names if not gene in tf_names]
 
     # Check if TF clustering is desired.
@@ -70,10 +70,11 @@ def perform_fdr(
         if target_cluster_mode == 'wasserstein':
             dist_matrix_all = compute_wasserstein_distance_matrix(expression_data, num_threads=-1)
 
-        if tf_cluster_mode == 'correlation':
+        if tf_cluster_mode == 'correlation' or tf_cluster_mode == "kmeans":
             tf_bool = [True if gene in tf_names else False for gene in expression_data.columns]
             exp_matrix_tfs = expression_data.loc[:, tf_bool]
-            corr_distances_tfs = compute_correlation_distance_matrix(exp_matrix_tfs)
+            if tf_cluster_mode == "correlation":
+                corr_distances_tfs = compute_correlation_distance_matrix(exp_matrix_tfs)
 
         # Cluster targets and TFs separately given respective mode.
         if target_cluster_mode == 'kmeans':
@@ -89,7 +90,7 @@ def perform_fdr(
             tf_to_clust, tf_medoids = cluster_genes_to_dict(corr_distances_tfs, num_clusters=num_tf_clusters, mode='distance')
         elif tf_cluster_mode == 'kmeans':
             tf_to_clust, tf_medoids = cluster_genes_to_dict(exp_matrix_tfs, num_clusters=num_tf_clusters,
-                                                            mode='distance')
+                                                            mode='kmeans')
         else:
             print(f'Unknown TF cluster mode: {tf_cluster_mode}')
 
@@ -197,7 +198,7 @@ def diy_fdr(expression_data,
 
         # TF names do not matter in FDR mode, hence can be set to dummy list.
         tf_names = None
-        expression_matrix, gene_names, _ = _prepare_input(expression_data, gene_names, tf_names)
+        expression_matrix, gene_names, _, _ = _prepare_input(expression_data, gene_names, tf_names, "all")
 
         if verbose:
             print('creating dask graph')

@@ -86,8 +86,6 @@ def is_xgboost_regressor(regressor_type):
     """
     return regressor_type.upper() == 'XGB'
 
-def is_lasso_regressor(regressor_type):
-    return regressor_type.upper() == "LASSO"
 
 def is_oob_heuristic_supported(regressor_type, regressor_kwargs):
     """
@@ -181,7 +179,7 @@ def fit_model(regressor_type,
         return do_sklearn_regression()
     elif is_xgboost_regressor(regressor_type):
         return do_xgboost_regression()
-    elif is_lasso_regressor(regressor_type):
+    elif regressor_type.upper() == "LASSO":
         return do_lasso_regression()
     else:
         raise ValueError('Unsupported regressor type: {0}'.format(regressor_type))
@@ -268,7 +266,7 @@ def to_links_df(regressor_type,
         return pythonic()
     elif is_xgboost_regressor(regressor_type):
         return pythonic()
-    elif is_lasso_regressor(regressor_type):
+    elif regressor_type.upper() == "LASSO":
         return pythonic()
     else:
         raise ValueError('Unsupported regressor type: ' + regressor_type)

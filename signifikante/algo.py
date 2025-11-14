@@ -8,6 +8,7 @@ from signifikante.core import (
     create_graph, SGBM_KWARGS, RF_KWARGS, EARLY_STOP_WINDOW_LENGTH, ET_KWARGS, XGB_KWARGS, LASSO_KWARGS
 )
 from signifikante.fdr import perform_fdr
+from signifikante.fdr_utils import _prepare_client, _prepare_input
 import os
 
 def signifikante_fdr(
@@ -366,103 +367,3 @@ def diy(expression_data,
 
         if verbose:
             print('finished')
-
-
-def _prepare_client(client_or_address):
-    """
-    :param client_or_address: one of:
-           * None
-           * verbatim: 'local'
-           * string address
-           * a Client instance
-    :return: a tuple: (Client instance, shutdown callback function).
-    :raises: ValueError if no valid client input was provided.
-    """
-
-    if client_or_address is None or str(client_or_address).lower() == 'local':
-        local_cluster = LocalCluster(diagnostics_port=None)
-        client = Client(local_cluster)
-
-        def close_client_and_local_cluster(verbose=False):
-            if verbose:
-                print('shutting down client and local cluster')
-
-            client.close()
-            local_cluster.close()
-
-        return client, close_client_and_local_cluster
-
-    elif isinstance(client_or_address, str) and client_or_address.lower() != 'local':
-        client = Client(client_or_address)
-
-        def close_client(verbose=False):
-            if verbose:
-                print('shutting down client')
-
-            client.close()
-
-        return client, close_client
-
-    elif isinstance(client_or_address, Client):
-
-        def close_dummy(verbose=False):
-            if verbose:
-                print('not shutting down client, client was created externally')
-
-            return None
-
-        return client_or_address, close_dummy
-
-    else:
-        raise ValueError("Invalid client specified {}".format(str(client_or_address)))
-
-
-def _prepare_input(expression_data,
-                   gene_names,
-                   tf_names,
-                   target_names):
-    """
-    Wrangle the inputs into the correct formats.
-
-    :param expression_data: one of:
-                            * a pandas DataFrame (rows=observations, columns=genes)
-                            * a dense 2D numpy.ndarray
-                            * a sparse scipy.sparse.csc_matrix
-    :param gene_names: optional list of gene names (strings).
-                       Required when a (dense or sparse) matrix is passed as 'expression_data' instead of a DataFrame.
-    :param tf_names: optional list of transcription factors. If None or 'all', the list of gene_names will be used.
-    :return: a triple of:
-             1. a np.ndarray or scipy.sparse.csc_matrix
-             2. a list of gene name strings
-             3. a list of transcription factor name strings.
-    """
-
-    if isinstance(expression_data, pd.DataFrame):
-        expression_matrix = expression_data.to_numpy()
-        gene_names = list(expression_data.columns)
-    else:
-        expression_matrix = expression_data
-        assert expression_matrix.shape[1] == len(gene_names)
-
-    if tf_names is None:
-        tf_names = gene_names
-    elif tf_names == 'all':
-        tf_names = gene_names
-    else:
-        if len(tf_names) == 0:
-            raise ValueError('Specified tf_names is empty')
-
-        if not set(gene_names).intersection(set(tf_names)):
-            raise ValueError('Intersection of gene_names and tf_names is empty.')
-    
-    if isinstance(target_names, str) and target_names == 'all':
-        target_names = gene_names
-    else:
-        if len(target_names) == 0:
-            raise ValueError('Specified target list is empty')
-
-        if not set(gene_names).intersection(set(target_names)):
-            raise ValueError('Intersection of gene_names and target_names is empty.')
-
-
-    return expression_matrix, gene_names, tf_names, target_names
