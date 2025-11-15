@@ -288,3 +288,39 @@ class Dream5Net1Tests(TestCase):
 
     def test_load_net1_tf_names(self):
         self.assertEqual(195, len(net1_tf_matrix_gene_names))
+        
+
+class AdditionalGRNInferences(TestCase):
+    def test_xgboost(self):
+        target = np.array([0.5, 0.6, 0.2, 0.8])
+        tf_matrix = np.array([[0.5, 0.6],
+                              [0.3, 0.9],
+                              [1.2, 4.5],
+                              [6.7, 2.4]])
+        reg = fit_model("XGB",
+              XGB_KWARGS,
+              tf_matrix,
+              target,
+              early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
+              seed=DEMON_SEED)
+        
+        to_feature_importances("XGB",
+                           XGB_KWARGS,
+                           reg)
+        
+    def test_lasso(self):
+        target = np.array([0.5, 0.6, 0.2, 0.8])
+        tf_matrix = np.array([[0.5, 0.6],
+                              [0.3, 0.9],
+                              [1.2, 4.5],
+                              [6.7, 2.4]])
+        reg = fit_model("LASSO",
+              LASSO_KWARGS,
+              tf_matrix,
+              target,
+              early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
+              seed=DEMON_SEED)
+
+        to_feature_importances("LASSO",
+                           LASSO_KWARGS,
+                           reg)

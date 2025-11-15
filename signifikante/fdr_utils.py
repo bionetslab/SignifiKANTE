@@ -131,10 +131,10 @@ def cluster_genes_to_dict(input_matrix : pd.DataFrame, num_clusters : int, mode 
         print("Cluster_genes_to_dict: unknown clustering mode...")
         return None
 
-def merge_gene_clusterings(clustering1 : dict, clustering2 : dict):
-    num_clusters1 = max({clusterID for _, clusterID in clustering1.items()})+1
-    updated_clustering2 = {gene : clusterID+num_clusters1 for gene, clusterID in clustering2.items()}
-    return clustering1 | updated_clustering2
+#def merge_gene_clusterings(clustering1 : dict, clustering2 : dict):
+#    num_clusters1 = max({clusterID for _, clusterID in clustering1.items()})+1
+#    updated_clustering2 = {gene : clusterID+num_clusters1 for gene, clusterID in clustering2.items()}
+#    return clustering1 | updated_clustering2
 
 def compute_medoids(gene_to_cluster : dict, distance_matrix : pd.DataFrame):
     medoids = []

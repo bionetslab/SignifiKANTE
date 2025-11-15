@@ -203,7 +203,7 @@ class TestParallelizedFunctions(TestCase):
             [2.5, 4.5, 13.2]
         ], dtype=np.float64)
         tf_matrix_gene_names = ['TF1', 'TF2', 'TF3']
-        are_tfs_clustered = False  # Set to False to test the cleaning step
+        are_tfs_clustered = True  # Set to False to test the cleaning step
 
         # --- 3. Target Gene Data ---
         target_gene_name = 'target1' # This TF is also the target gene
@@ -219,9 +219,9 @@ class TestParallelizedFunctions(TestCase):
         }
 
         # --- 5. Clustering and Scaling Parameters (Set to defaults/empty for non-clustered test) ---
-        per_target_importance_sums = {}
-        tf_to_cluster = {'TF1' : 0, 'TF2': 1, 'TF3': 2}
-        cluster_to_tf = {0 : 'TF1', 1: 'TF2', 2: 'TF3'}
+        per_target_importance_sums = {'target1' : 0.8, 'target2' : 0.9}
+        tf_to_cluster = {'TF1' : 0, 'TF2': 1, 'TF3': 1}
+        cluster_to_tf = {0 : ['TF1'], 1: ['TF2', 'TF3']}
 
         # --- 6. Permutations and Options ---
         n_permutations = 3 # Use a small number for fast testing
@@ -283,11 +283,11 @@ class TestParallelizedFunctions(TestCase):
         ], dtype=np.float64)
 
         # --- 4. TF Cluster Information (Required for sampling and scaling) ---
-        cluster_to_tfs = None
+        cluster_to_tfs = {0 : ['TF1'], 1 : ['TF2', 'TF3']}
 
         # Mapping TFs back to their cluster IDs
         tf_to_cluster = {
-            'TF1': 0, 'TF2': 1, 'TF3': 2
+            'TF1': 0, 'TF2': 1, 'TF3': 1
         }
 
         # --- 5. GRN Links to be Tested ---
@@ -301,8 +301,8 @@ class TestParallelizedFunctions(TestCase):
         # --- 6. Importance Sums (Used for scaling in the clustered path) ---
         # Sum of actual importance values for each target in the GRN.
         per_target_importance_sums = {
-            'target1': 1.0, # 0.9 + 0.1
-            'target2': 1.0  # 0.5 + 0.5
+            'target1': 0.7,
+            'target2': 0.4
         }
 
         # --- 7. Permutations and Options ---
@@ -310,7 +310,7 @@ class TestParallelizedFunctions(TestCase):
         early_stop_window_length = EARLY_STOP_WINDOW_LENGTH
         seed = DEMON_SEED
         output_dir = None
-        scale_for_tf_sampling = False
+        scale_for_tf_sampling = True
         
         count_computation_sampled_representative(
         cluster_id=cluster_id,
