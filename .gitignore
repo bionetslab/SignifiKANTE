@@ -1,0 +1,9 @@
+# Ignore all Python cache directories everywhere
+**/__pycache__/
+
+# Ignore the specific test output directory
+test_output/
+
+# Ignore the Python coverage data file
+.coverage
+
