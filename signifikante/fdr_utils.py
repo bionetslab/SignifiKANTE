@@ -25,8 +25,9 @@ def _merge_sorted_arrays(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     # Offset each searchsorted indices with ranged array to get new positions of b in output array
     b_pos = np.arange(lenB) + idx
     lenTotal = lenA+lenB
-    mask = np.ones(lenTotal,dtype=types.boolean)
-    out = np.empty(lenTotal,dtype=types.float64)
+    # Alternative: use types.boolean and types.float64
+    mask = np.ones(lenTotal,dtype=np.bool_)
+    out = np.empty(lenTotal,dtype=np.float64)
     mask[b_pos] = False
     out[b_pos] = b
     out[mask] = a

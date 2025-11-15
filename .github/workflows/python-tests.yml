@@ -30,7 +30,8 @@ jobs:
           pip install coverage
 
       - name: Run tests and collect coverage
-        run: coverage run --include="signifikante/*" -m unittest discover -s tests -v
+        run: coverage run --source="signifikante" -m unittest discover -s tests -v
+          NUMBA_DISABLE_JIT=1 coverage run -a --source="signifikante" -m unittest discover -s tests -p 'test_numba.py' -v
 
       - name: Generate Coverage Badge
         uses: tj-actions/coverage-badge-py@v2
