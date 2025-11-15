@@ -10,11 +10,14 @@
    :target: https://github.com/bionetslab/SignifiKANTE/actions/workflows/python-tests.yml
    :alt: Code Coverage
 
-|tests| |coverage| |pypi|
-
+.. |version| image:: https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12%20|%203.13-blue.svg
+   :target: https://pypi.org/project/signifikante/
+   :alt: Supported Python Versions
 
 SignifiKANTE
 ============
+
+|tests| |coverage| |pypi| |version|
 
 .. _arboreto: https://arboreto.readthedocs.io
 
