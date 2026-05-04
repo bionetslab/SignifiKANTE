@@ -2,32 +2,32 @@ name: Python Tests
 
 on:
   push:
-    branches: [ main, master ] # Run on pushes to main or master branches
+    branches: [main, master] # Run on pushes to main or master branches
   pull_request:
-    branches: [ main, master ] # Optionally, run on pull requests
+    branches: [main, master] # Optionally, run on pull requests
 
 jobs:
   test:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # <-- REQUIRED: Allows the action to commit the badge SVG
+      contents: write # Required for committing badge updates
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # IMPORTANT: Ensures full history for committing changes
+          fetch-depth: 0 # Full history needed for committing changes
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
-      - name: Install dependencies and coverage
+      - name: Install dependencies and coverage tools
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-          pip install coverage
+          pip install coverage setuptools==80.9.0 coverage-badge
 
       - name: Run tests and collect coverage
         run: |
@@ -36,11 +36,12 @@ jobs:
 
       - name: Generate Coverage Badge
         uses: tj-actions/coverage-badge-py@v2
+        with:
+          output: coverage.svg
 
       - name: Commit and Push Badge
-        # Only commit the change if a badge file was created/updated
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: 'CI: update coverage badge'
-          files: coverage.svg
-
+          commit_message: "CI: update coverage badge"
+          file_pattern: coverage.svg
