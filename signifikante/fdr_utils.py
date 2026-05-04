@@ -114,6 +114,29 @@ def cluster_genes_to_dict(input_matrix : pd.DataFrame, num_clusters : int, mode 
         gene_to_cluster = {name : id for name, id in zip(gene_names, cluster_labels)}
         medoids = compute_medoids(gene_to_cluster, input_matrix)
         return gene_to_cluster, medoids
+    
+    elif mode == 'distance-spectral':
+        from sklearn.cluster import SpectralClustering
+
+        distance_matrix = input_matrix.to_numpy()
+
+        gamma = 1.0
+        affinity_matrix = np.exp(-gamma * (distance_matrix ** 2))
+
+        spectral_clustering = SpectralClustering(
+            n_clusters=num_clusters,
+            affinity='precomputed',
+            random_state=42
+        )
+
+        cluster_labels = spectral_clustering.fit_predict(affinity_matrix)
+        gene_names = input_matrix.columns.to_list()
+        gene_to_cluster = {name: cluster_id for name, cluster_id in zip(gene_names, cluster_labels)}
+
+        # Compute medoids based on original distance matrix.
+        medoids = compute_medoids(gene_to_cluster, input_matrix)
+        return gene_to_cluster, medoids
+    
     elif mode=='kmeans':
         num_samples = len(input_matrix.index)
         # Perform PCA on columns of expression matrix.
