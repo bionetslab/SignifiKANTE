@@ -5,7 +5,7 @@ import pandas as pd
 from distributed import Client, LocalCluster
 # UPDATE FOR NEW GRN METHOD
 from signifikante.core import (
-    create_graph, SGBM_KWARGS, RF_KWARGS, EARLY_STOP_WINDOW_LENGTH, ET_KWARGS, XGB_KWARGS, LASSO_KWARGS
+    create_graph, SGBM_KWARGS, RF_KWARGS, EARLY_STOP_WINDOW_LENGTH, ET_KWARGS, XGB_KWARGS, LASSO_KWARGS, SVR_KWARGS
 )
 from signifikante.fdr import perform_fdr
 from signifikante.fdr_utils import _prepare_client, _prepare_input
@@ -52,7 +52,7 @@ def signifikante_fdr(
         :param num_permutations: How many permutations to perform for random background model for empirical P-value computation. Defaults to 1000.
         :param output_dir: Where to save additional intermediate data to. Defaults to None, i.e. saves no intermediate results.
         :param scale_for_tf_sampling: Experimental feature. Whether or not to keep track of occurences of edges in permuted GRNs. Defaults to False.
-        :param inference_mode: Which GRN inference method to use under the hood. Can be one of "grnboost2", "genie3", "xgboost", and "lasso". Defaults to "grnboost2".
+        :param inference_mode: Which GRN inference method to use under the hood. Can be one of "grnboost2", "genie3", "xgboost", "svr", and "lasso". Defaults to "grnboost2".
         :param apply_bh_correction: Whether or not to additionally return Benjamini-Hochberg adjusted P-values.
         :param normalize_gene_expression: Whether or not to apply z-score normalization on gene columns in input expression matrix.
         :return: Pandas DataFrame with columns 'TF', 'target', 'importance', 'pvalue' representing P-values on each gene regulatory link.
@@ -126,6 +126,9 @@ def signifikante_fdr(
     elif inference_mode == "lasso":
         regressor_type = "LASSO"
         regressor_args = LASSO_KWARGS
+    elif inference_mode == "svr":
+        regressor_type = "SVR"
+        regressor_args = SVR_KWARGS
     else:
         raise ValueError(f"Unknown GRN inference mode: {inference_mode}")
         
