@@ -38,7 +38,7 @@ jobs:
       # Do NOT use tj-actions/coverage-badge-py because it force-upgrades setuptools
       - name: Generate Coverage Badge
         run: |
-          coverage-badge -o coverage.svg
+          coverage-badge -f -o coverage.svg
 
       - name: Commit and Push Badge
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
