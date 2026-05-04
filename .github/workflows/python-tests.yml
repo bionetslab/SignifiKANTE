@@ -2,28 +2,28 @@ name: Python Tests
 
 on:
   push:
-    branches: [main, master] # Run on pushes to main or master branches
+    branches: [main, master]
   pull_request:
-    branches: [main, master] # Optionally, run on pull requests
+    branches: [main, master]
 
 jobs:
   test:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Required for committing badge updates
+      contents: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Full history needed for committing changes
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install dependencies and coverage tools
+      - name: Install project dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e .
@@ -34,10 +34,11 @@ jobs:
           coverage run --source="signifikante" -m unittest discover -s tests -v
           NUMBA_DISABLE_JIT=1 coverage run -a --source="signifikante" -m unittest discover -s tests -p 'test_numba.py' -v
 
+      # IMPORTANT:
+      # Do NOT use tj-actions/coverage-badge-py because it force-upgrades setuptools
       - name: Generate Coverage Badge
-        uses: tj-actions/coverage-badge-py@v2
-        with:
-          output: coverage.svg
+        run: |
+          coverage-badge -o coverage.svg
 
       - name: Commit and Push Badge
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
