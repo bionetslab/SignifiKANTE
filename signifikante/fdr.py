@@ -17,6 +17,7 @@ from dask.dataframe.utils import make_meta
 import pickle
 import os
 from statsmodels.stats.multitest import multipletests
+from sklearn.cluster import AgglomerativeClustering
 
 FDR_GRN_SCHEMA = make_meta({'TF': str, 'target': str, 'importance': float, 'count' : float, 'shuffled_occurences' : float})
 
@@ -634,3 +635,70 @@ def count_computation_sampled_representative(
 @delayed
 def save_df(df, filename):
     df.to_feather(filename)
+    
+def run_heuristic(expression_mat : pd.DataFrame,
+                  max_clusters : int = 100,
+                  decrease_fraction : float = 0.1
+                  ) -> int:
+    """
+    Heuristic function for finding optimal number of cluster diameters.
+
+    :param expression_mat: gene expression matrix with genes as columns and samples as rows.
+    :return: Best number of clusters according to clustering structure.
+    """
+    # Compute Wasserstein distance matrix between gene expression columns.
+    distance_df = compute_wasserstein_distance_matrix(expression_mat)
+    distance_matrix = distance_df.values
+    
+    # Heuristic: Look for "elbow" in cluster diameters.
+    n_genes = distance_matrix.shape[0]
+    results = []
+
+    initial_mean_diameter = None
+    stopping_threshold = None
+    previous_mean_diameter = None
+
+    for num_clusters in range(1, min(max_clusters, n_genes) + 1):
+
+        clustering = AgglomerativeClustering(
+            n_clusters=num_clusters,
+            metric="precomputed",
+            linkage="complete"
+        )
+
+        labels = clustering.fit_predict(distance_matrix)
+
+        cluster_diameters = []
+
+        for cluster_id in np.unique(labels):
+            cluster_indices = np.where(labels == cluster_id)[0]
+
+            if len(cluster_indices) <= 1:
+                cluster_diameters.append(0.0)
+                continue
+
+            cluster_distances = distance_matrix[np.ix_(cluster_indices, cluster_indices)]
+            diameter = np.max(cluster_distances)
+            cluster_diameters.append(diameter)
+
+        mean_diameter = float(np.mean(cluster_diameters))
+
+        # Initialize threshold using first clustering.
+        if num_clusters == 1:
+            initial_mean_diameter = mean_diameter
+            stopping_threshold = decrease_fraction * initial_mean_diameter
+
+        # Stop criterion
+        if previous_mean_diameter is not None:
+            decrease = previous_mean_diameter - mean_diameter
+            if decrease < stopping_threshold:
+                break
+
+        results.append({
+            "n_clusters": num_clusters,
+            "mean_cluster_diameter": mean_diameter,
+        })
+
+        previous_mean_diameter = mean_diameter
+
+    return num_clusters

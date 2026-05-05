@@ -8,7 +8,7 @@ from signifikante.core import (
     create_graph, SGBM_KWARGS, RF_KWARGS, EARLY_STOP_WINDOW_LENGTH, ET_KWARGS, XGB_KWARGS, LASSO_KWARGS, 
     SVR_KWARGS, RIDGE_KWARGS, ELASTIC_KWARGS
 )
-from signifikante.fdr import perform_fdr
+from signifikante.fdr import perform_fdr, run_heuristic
 from signifikante.fdr_utils import _prepare_client, _prepare_input
 import os
 
@@ -461,3 +461,12 @@ def diy(expression_data,
 
         if verbose:
             print('finished')
+
+def find_optimal_number_of_clusters(expression_mat : pd.DataFrame):
+    """
+    Heuristic function for finding optimal number of cluster diameters.
+
+    :param expression_mat: Gene expression matrix with genes as columns and samples as rows.
+    :return: Pandas DataFrame with columns 'n_clusters' and 'mean_cluster_diameter' representing the mean cluster diameter for each number of clusters.
+    """
+    return run_heuristic(expression_mat, max_clusters=100, decrease_fraction=0.02)
