@@ -14,6 +14,8 @@ from dask.dataframe.utils import make_meta
 from xgboost import XGBRegressor
 from sklearn.linear_model import Lasso
 from sklearn.svm import SVR as _sklearn_SVR
+from sklearn.linear_model import BayesianRidge as _sklearn_BayesianRidge
+from sklearn.linear_model import ElasticNetCV as _sklearn_ElasticNetCV
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +75,10 @@ LASSO_KWARGS = {
 SVR_KWARGS = {
     'kernel': 'linear'
 }
+
+RIDGE_KWARGS = {}
+
+ELASTIC_KWARGS = {}
 # UPDATE FOR NEW GRN METHOD
 
 
@@ -183,6 +189,11 @@ def fit_model(regressor_type,
         regressor = _sklearn_SVR(**regressor_kwargs)
         regressor.fit(tf_matrix, target_gene_expression)
         return regressor
+    
+    def do_ridge_regression():
+        regressor = _sklearn_BayesianRidge(**RIDGE_KWARGS)
+        regressor.fit(tf_matrix, target_gene_expression)
+        return regressor
 
     # UPDATE FOR NEW GRN METHOD
     if is_sklearn_regressor(regressor_type):
@@ -193,6 +204,12 @@ def fit_model(regressor_type,
         return do_lasso_regression()
     elif regressor_type.upper() == "SVR":
         return do_svr_regression()
+    elif regressor_type.upper() == "RIDGE":
+        return do_ridge_regression()
+    elif regressor_type.upper() == "ELASTIC":
+        regressor = _sklearn_ElasticNetCV(**ELASTIC_KWARGS, random_state=seed)
+        regressor.fit(tf_matrix, target_gene_expression)
+        return regressor
     else:
         raise ValueError('Unsupported regressor type: {0}'.format(regressor_type))
 
@@ -235,6 +252,12 @@ def to_feature_importances(regressor_type,
     elif regressor_type.upper() == "SVR":
         scores = np.abs(trained_regressor.coef_)
         return (scores[0])
+    elif regressor_type.upper() == "RIDGE":
+        scores = np.abs(trained_regressor.coef_)
+        return scores
+    elif regressor_type.upper() == "ELASTIC":
+        scores = np.abs(trained_regressor.coef_)
+        return scores
     else:
         return trained_regressor.feature_importances_
 
@@ -284,6 +307,10 @@ def to_links_df(regressor_type,
     elif regressor_type.upper() == "LASSO":
         return pythonic()
     elif regressor_type.upper() == "SVR":
+        return pythonic()
+    elif regressor_type.upper() == "RIDGE":
+        return pythonic()
+    elif regressor_type.upper() == "ELASTIC":
         return pythonic()
     else:
         raise ValueError('Unsupported regressor type: ' + regressor_type)

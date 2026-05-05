@@ -5,7 +5,8 @@ import pandas as pd
 from distributed import Client, LocalCluster
 # UPDATE FOR NEW GRN METHOD
 from signifikante.core import (
-    create_graph, SGBM_KWARGS, RF_KWARGS, EARLY_STOP_WINDOW_LENGTH, ET_KWARGS, XGB_KWARGS, LASSO_KWARGS, SVR_KWARGS
+    create_graph, SGBM_KWARGS, RF_KWARGS, EARLY_STOP_WINDOW_LENGTH, ET_KWARGS, XGB_KWARGS, LASSO_KWARGS, 
+    SVR_KWARGS, RIDGE_KWARGS, ELASTIC_KWARGS
 )
 from signifikante.fdr import perform_fdr
 from signifikante.fdr_utils import _prepare_client, _prepare_input
@@ -52,7 +53,7 @@ def signifikante_fdr(
         :param num_permutations: How many permutations to perform for random background model for empirical P-value computation. Defaults to 1000.
         :param output_dir: Where to save additional intermediate data to. Defaults to None, i.e. saves no intermediate results.
         :param scale_for_tf_sampling: Experimental feature. Whether or not to keep track of occurences of edges in permuted GRNs. Defaults to False.
-        :param inference_mode: Which GRN inference method to use under the hood. Can be one of "grnboost2", "genie3", "xgboost", "svr", and "lasso". Defaults to "grnboost2".
+        :param inference_mode: Which GRN inference method to use under the hood. Can be one of "grnboost2", "genie3", "xgboost", "svr", "lasso", and "ridge". Defaults to "grnboost2".
         :param apply_bh_correction: Whether or not to additionally return Benjamini-Hochberg adjusted P-values.
         :param normalize_gene_expression: Whether or not to apply z-score normalization on gene columns in input expression matrix.
         :return: Pandas DataFrame with columns 'TF', 'target', 'importance', 'pvalue' representing P-values on each gene regulatory link.
@@ -129,6 +130,12 @@ def signifikante_fdr(
     elif inference_mode == "svr":
         regressor_type = "SVR"
         regressor_args = SVR_KWARGS
+    elif inference_mode == "ridge":
+        regressor_type = "RIDGE"
+        regressor_args = RIDGE_KWARGS
+    elif inference_mode == "elastic":
+        regressor_type = "ELASTIC"
+        regressor_args = ELASTIC_KWARGS 
     else:
         raise ValueError(f"Unknown GRN inference mode: {inference_mode}")
         
@@ -297,6 +304,90 @@ def lasso(expression_data,
     """
 
     return diy(expression_data=expression_data, regressor_type='LASSO', regressor_kwargs=LASSO_KWARGS,
+               gene_names=gene_names, tf_names=tf_names, client_or_address=client_or_address,
+               limit=limit, seed=seed, verbose=verbose)
+    
+def svr(expression_data,
+           gene_names=None,
+           tf_names='all',
+           client_or_address='local',
+           limit=None,
+           seed=None,
+           verbose=False):
+    """
+    Run support vector regression based GRN inference method.
+
+    :param expression_data: Expression matrix stored in either pandas DataFrame (rows=observations, columns=genes),
+            a dense 2D numpy.ndarray, or a sparse scipy.sparse.csc_matrix.
+    :param gene_names: Optional list of gene names. Required when a dense or sparse matrix is passed as
+            expression_data instead of a pandas DataFrame. Defaults to None.
+    :param tf_names: Optional list of transcription factors. If set to None or 'all', the list of gene_names will be used. Defaults to 'all'.
+    :param target_names: Optional list of target genes, which are supposed to be used as target genes in the regression model. Defaults to 'all'.
+    :param client_or_address: Whether to perform computation on given input Dask Cluster object, or to create a new local one ("local"). Defaults to "local".
+    :param early_stop_window_length: Window length for early stopping criteria. Default to 25.
+    :param limit: Optional number of top regulatory links to return. Defaults to None.
+    :param seed: Optional random seed for the regression models. Defaults to None.
+    :param verbose: Whether or not to print detailed additional information. Defaults to False.
+    :return: a pandas DataFrame['TF', 'target', 'importance'] representing the inferred gene regulatory links.
+    """
+
+    return diy(expression_data=expression_data, regressor_type='SVR', regressor_kwargs=SVR_KWARGS,
+               gene_names=gene_names, tf_names=tf_names, client_or_address=client_or_address,
+               limit=limit, seed=seed, verbose=verbose)
+    
+def ridge(expression_data,
+          gene_names=None,
+          tf_names='all',
+          client_or_address='local',
+          limit=None,
+          seed=None,
+          verbose=False):
+    """
+    Run ridge regression based GRN inference method.
+
+    :param expression_data: Expression matrix stored in either pandas DataFrame (rows=observations, columns=genes),
+            a dense 2D numpy.ndarray, or a sparse scipy.sparse.csc_matrix.
+    :param gene_names: Optional list of gene names. Required when a dense or sparse matrix is passed as
+            expression_data instead of a pandas DataFrame. Defaults to None.
+    :param tf_names: Optional list of transcription factors. If set to None or 'all', the list of gene_names will be used. Defaults to 'all'.
+    :param target_names: Optional list of target genes, which are supposed to be used as target genes in the regression model. Defaults to 'all'.
+    :param client_or_address: Whether to perform computation on given input Dask Cluster object, or to create a new local one ("local"). Defaults to "local".
+    :param early_stop_window_length: Window length for early stopping criteria. Default to 25.
+    :param limit: Optional number of top regulatory links to return. Defaults to None.
+    :param seed: Optional random seed for the regression models. Defaults to None.
+    :param verbose: Whether or not to print detailed additional information. Defaults to False.
+    :return: a pandas DataFrame['TF', 'target', 'importance'] representing the inferred gene regulatory links.
+    """
+
+    return diy(expression_data=expression_data, regressor_type='RIDGE', regressor_kwargs=RIDGE_KWARGS,
+               gene_names=gene_names, tf_names=tf_names, client_or_address=client_or_address,
+               limit=limit, seed=seed, verbose=verbose)
+    
+def elastic(expression_data,
+          gene_names=None,
+          tf_names='all',
+          client_or_address='local',
+          limit=None,
+          seed=None,
+          verbose=False):
+    """
+    Run elastic net regression based GRN inference method.
+
+    :param expression_data: Expression matrix stored in either pandas DataFrame (rows=observations, columns=genes),
+            a dense 2D numpy.ndarray, or a sparse scipy.sparse.csc_matrix.
+    :param gene_names: Optional list of gene names. Required when a dense or sparse matrix is passed as
+            expression_data instead of a pandas DataFrame. Defaults to None.
+    :param tf_names: Optional list of transcription factors. If set to None or 'all', the list of gene_names will be used. Defaults to 'all'.
+    :param target_names: Optional list of target genes, which are supposed to be used as target genes in the regression model. Defaults to 'all'.
+    :param client_or_address: Whether to perform computation on given input Dask Cluster object, or to create a new local one ("local"). Defaults to "local".
+    :param early_stop_window_length: Window length for early stopping criteria. Default to 25.
+    :param limit: Optional number of top regulatory links to return. Defaults to None.
+    :param seed: Optional random seed for the regression models. Defaults to None.
+    :param verbose: Whether or not to print detailed additional information. Defaults to False.
+    :return: a pandas DataFrame['TF', 'target', 'importance'] representing the inferred gene regulatory links.
+    """
+
+    return diy(expression_data=expression_data, regressor_type='ELASTIC', regressor_kwargs=ELASTIC_KWARGS,
                gene_names=gene_names, tf_names=tf_names, client_or_address=client_or_address,
                limit=limit, seed=seed, verbose=verbose)
 
