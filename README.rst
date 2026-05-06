@@ -107,7 +107,7 @@ Additional parameters of SignifiKANTE's FDR control:
 - :code:`normalize_gene_expression [bool]` :  Whether or not to apply z-score normalization on gene columns in input expression matrix.
 
 
-- :code:`inference_mode [str]`: Which GRN inference method to use under the hood. Can be one of "grnboost2", "genie3", "xgboost", "lasso" (Lasso regression), "svr" (support vector regression), "ridge" (Bayesian ridge regression), and "elastic" (ElasticNet regression). Defaults to "grnboost2".
+- :code:`inference_mode [str]`: Which GRN inference method to use under the hood. Can be one of "grnboost2", "genie3", "xgboost", "lasso" (Lasso regression), "svr" (support vector regression), "ridge" (Bayesian ridge regression), "elastic" (ElasticNet regression), and "omp" (Orthogonal matching pursuit). Defaults to "grnboost2".
 - :code:`num_permutations [int]`: How many permutations to perform for random background model for empirical P-value computation. Defaults to 1000.
 - :code:`tf_names [list]`: List of strings representing TF names. Should be subset of gene names contained in :code:`expression_data`. Defaults to None. If no list is given, all genes are treated as potential TFs.
 - :code:`apply_bh_correction [bool]`: Whether or not to additionally return Benjamini-Hochberg adjusted P-values.
@@ -211,4 +211,5 @@ Unit tests for arboreto-based functionalities, as well as additional tests for S
 
     python -m unittest discover -s tests -v
 
-    
+
+​    
