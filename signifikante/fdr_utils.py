@@ -223,7 +223,8 @@ def count_helper(
         shuffled_grn: pd.DataFrame,
         partial_input_grn: dict[str, dict[str, float]],
         tf_to_cluster: dict[str, int],
-        scale_for_tf_sampling : bool
+        scale_for_tf_sampling : bool,
+        apply_westfall_young : bool
 ) -> None:
     """
     Computes empirical counts for all edges in input GRN based on given decoy edges.
@@ -243,6 +244,7 @@ def count_helper(
         tf_to_cluster[tf]: imp for tf, imp in zip(shuffled_grn['TF'], shuffled_grn['importance'])
     }
 
+    max_importance = shuffled_grn['importance'].max()
     for (tf, _), val in partial_input_grn.items():
         if tf_to_cluster[tf] in shuffled_grn_tf_cluster_to_importance:
             importance_input = val['importance']
@@ -251,6 +253,8 @@ def count_helper(
                 val['shuffled_occurences'] += 1
             if importance_shuffled >= importance_input:
                 val['count'] += 1
+            if apply_westfall_young and max_importance >= importance_input:
+                val['westfall_young'] += 1
 
 def _prepare_client(client_or_address):
     """

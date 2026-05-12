@@ -15,7 +15,7 @@ import os
 def signifikante_fdr(
         expression_data : pd.DataFrame,
         cluster_representative_mode : str,
-        num_target_clusters : int = -1,
+        num_target_clusters : int = 10,
         num_tf_clusters : int = -1,
         target_cluster_mode : str = 'wasserstein',
         tf_cluster_mode : str = 'correlation',
@@ -31,7 +31,8 @@ def signifikante_fdr(
         scale_for_tf_sampling : bool = False,
         inference_mode : str = "grnboost2",
         apply_bh_correction : bool = False,
-        normalize_gene_expression : bool = False
+        normalize_gene_expression : bool = False,
+        apply_westfall_young : bool = False
 ):
     """
         :param expression_data: Expression matrix with genes as columns and samples as rows.
@@ -56,6 +57,7 @@ def signifikante_fdr(
         :param inference_mode: Which GRN inference method to use under the hood. Can be one of "grnboost2", "genie3", "xgboost", "svr", "lasso", "ridge", and "omp". Defaults to "grnboost2".
         :param apply_bh_correction: Whether or not to additionally return Benjamini-Hochberg adjusted P-values.
         :param normalize_gene_expression: Whether or not to apply z-score normalization on gene columns in input expression matrix.
+        :param apply_westfall_young: Whether or not to additionally return Westfall-Young adjusted P-values.
         :return: Pandas DataFrame with columns 'TF', 'target', 'importance', 'pvalue' representing P-values on each gene regulatory link.
     """
     if cluster_representative_mode not in {'medoid', 'random', 'all_genes'}:
@@ -78,6 +80,10 @@ def signifikante_fdr(
         if not os.path.exists(output_dir):
             print('output directory does not exist, creating!')
             os.makedirs(output_dir, exist_ok=True)
+            
+    if num_target_clusters > len(expression_data.columns):
+        num_target_clusters = len(expression_data.columns)
+        print(f"Number of chosen target clusters is larger than number of genes, setting num_target_clusters to {num_target_clusters}.")
 
     # If desired, apply z-score normalization on input gene expression matrix.
     if normalize_gene_expression:
@@ -162,7 +168,8 @@ def signifikante_fdr(
         scale_for_tf_sampling,
         regressor_type,
         regressor_args,
-        apply_bh_correction
+        apply_bh_correction,
+        apply_westfall_young
     )
 
 

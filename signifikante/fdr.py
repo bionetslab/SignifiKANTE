@@ -19,7 +19,7 @@ import os
 from statsmodels.stats.multitest import multipletests
 from sklearn.cluster import AgglomerativeClustering
 
-FDR_GRN_SCHEMA = make_meta({'TF': str, 'target': str, 'importance': float, 'count' : float, 'shuffled_occurences' : float})
+FDR_GRN_SCHEMA = make_meta({'TF': str, 'target': str, 'importance': float, 'count' : float, 'shuffled_occurences' : float, 'westfall_young' : float})
 
 def perform_fdr(
         expression_data : pd.DataFrame,
@@ -40,7 +40,8 @@ def perform_fdr(
         scale_for_tf_sampling,
         regressor_type,
         regressor_args,
-        apply_bh_correction
+        apply_bh_correction,
+        apply_westfall_young
 ):
     # Extract TF name and target name lists from expression matrix object.
     _, gene_names, tf_names, _ = _prepare_input(expression_data, None, tf_names, "all")
@@ -131,7 +132,8 @@ def perform_fdr(
                    verbose=verbose,
                    n_permutations=num_permutations,
                    output_dir=output_dir,
-                   scale_for_tf_sampling=scale_for_tf_sampling
+                   scale_for_tf_sampling=scale_for_tf_sampling,
+                   apply_westfall_young=apply_westfall_young
                    )
     
     # Transform counts into P-values and remove count column.
@@ -141,6 +143,10 @@ def perform_fdr(
         fdr_controlled_df.drop(columns=['shuffled_occurences'], inplace=True)
     if apply_bh_correction:
         fdr_controlled_df['pvalue_bh'] = multipletests(fdr_controlled_df['pvalue'], method='fdr_bh')[1]
+    
+    if apply_westfall_young:
+        fdr_controlled_df["pvalue_westfall_young"] = (fdr_controlled_df['westfall_young']+1)/(num_permutations+1)
+    fdr_controlled_df.drop(columns=['westfall_young'], inplace=True)
     
     return fdr_controlled_df
 
@@ -163,6 +169,7 @@ def diy_fdr(expression_data,
             verbose=False,
             n_permutations=1000,
             output_dir=None,
+            apply_westfall_young=False
             ):
     """
     :param are_tfs_clustered: True if TFs have also been clustered for FDR control.
@@ -237,7 +244,9 @@ def diy_fdr(expression_data,
                                  seed=seed,
                                  n_permutations=n_permutations,
                                  output_dir=output_dir,
-                                 scale_for_tf_sampling=scale_for_tf_sampling)
+                                 scale_for_tf_sampling=scale_for_tf_sampling,
+                                 apply_westfall_young=apply_westfall_young
+                                 )
 
         if verbose:
             print('{} partitions'.format(graph.npartitions))
@@ -272,7 +281,8 @@ def create_graph_fdr(expression_matrix: np.ndarray,
                      repartition_multiplier=1,
                      seed=DEMON_SEED,
                      n_permutations=1000,
-                     output_dir=None
+                     output_dir=None,  
+                     apply_westfall_young=False
                      ):
     """
     Main API function for FDR control. Create a Dask computation graph.
@@ -379,7 +389,8 @@ def create_graph_fdr(expression_matrix: np.ndarray,
                 early_stop_window_length,
                 seed,
                 output_dir,
-                scale_for_tf_sampling
+                scale_for_tf_sampling,
+                apply_westfall_young
             )
 
             if delayed_link_df is not None:
@@ -415,7 +426,8 @@ def create_graph_fdr(expression_matrix: np.ndarray,
                 early_stop_window_length,
                 seed,
                 output_dir,
-                scale_for_tf_sampling
+                scale_for_tf_sampling,
+                apply_westfall_young
             )
 
 
@@ -449,7 +461,8 @@ def count_computation_medoid_representative(
         early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
         seed=DEMON_SEED,
         output_dir=None,
-        scale_for_tf_sampling=False
+        scale_for_tf_sampling=False,
+        apply_westfall_young=False
 ):
 
     partial_input_grn = copy.deepcopy(partial_input_grn)
@@ -469,6 +482,7 @@ def count_computation_medoid_representative(
     for _, val in partial_input_grn.items():
         val.update({'count': 0.0})
         val.update({'shuffled_occurences': 0})
+        val.update({'westfall_young' : 0})
 
     # Iterate for num permutations
     for i in range(n_permutations):
@@ -510,12 +524,12 @@ def count_computation_medoid_representative(
             shuffled_grn_df['importance'] = shuffled_grn_df['importance'] * scaling_factor
 
         # Update the count values of the partial input GRN
-        count_helper(shuffled_grn_df, partial_input_grn, tf_to_cluster, scale_for_tf_sampling)
+        count_helper(shuffled_grn_df, partial_input_grn, tf_to_cluster, scale_for_tf_sampling, apply_westfall_young)
 
     # Change partial input GRN format from dict to df
     partial_input_grn_fdr_df = pd.DataFrame(
-        [(TF, target, v['importance'], v['count'], v['shuffled_occurences']) for (TF, target), v in partial_input_grn.items()],
-        columns=['TF', 'target', 'importance', 'count', 'shuffled_occurences']
+        [(TF, target, v['importance'], v['count'], v['shuffled_occurences'], v['westfall_young']) for (TF, target), v in partial_input_grn.items()],
+        columns=['TF', 'target', 'importance', 'count', 'shuffled_occurences', 'westfall_young']
     )
 
     if not output_dir is None:
@@ -541,7 +555,8 @@ def count_computation_sampled_representative(
         early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
         seed=DEMON_SEED,
         output_dir=None,
-        scale_for_tf_sampling=False
+        scale_for_tf_sampling=False,
+        apply_westfall_young=False
 ):
 
     partial_input_grn = copy.deepcopy(partial_input_grn)
@@ -551,6 +566,7 @@ def count_computation_sampled_representative(
     for _, val in partial_input_grn.items():
         val.update({'count': 0.0})
         val.update({'shuffled_occurences': 0})
+        val.update({'westfall_young' : 0})
 
     for perm in range(n_permutations):
         # Retrieve "random" target gene from cluster.
@@ -619,12 +635,12 @@ def count_computation_sampled_representative(
             shuffled_grn_df['importance'] = shuffled_grn_df['importance'] * scaling_factor
 
         # Update the count values of the partial input GRN.
-        count_helper(shuffled_grn_df, partial_input_grn, tf_to_cluster, scale_for_tf_sampling)
+        count_helper(shuffled_grn_df, partial_input_grn, tf_to_cluster, scale_for_tf_sampling, apply_westfall_young)
 
     # Change partial input GRN format from dict to df
     partial_input_grn_fdr_df = pd.DataFrame(
-        [(TF, target, v['importance'], v['count'], v['shuffled_occurences']) for (TF, target), v in partial_input_grn.items()],
-        columns=['TF', 'target', 'importance', 'count', 'shuffled_occurences']
+        [(TF, target, v['importance'], v['count'], v['shuffled_occurences'], v['westfall_young']) for (TF, target), v in partial_input_grn.items()],
+        columns=['TF', 'target', 'importance', 'count', 'shuffled_occurences', 'westfall_young']
     )
 
     if not output_dir is None:
