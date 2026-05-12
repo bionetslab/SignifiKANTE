@@ -19,7 +19,7 @@ import os
 from statsmodels.stats.multitest import multipletests
 from sklearn.cluster import AgglomerativeClustering
 
-FDR_GRN_SCHEMA = make_meta({'TF': str, 'target': str, 'importance': float, 'count' : float, 'shuffled_occurences' : float, 'westfall_young' : float})
+FDR_GRN_SCHEMA = make_meta({'TF': str, 'target': str, 'importance': float, 'count' : float, 'shuffled_occurences' : float, 'westfall_young' : float, 'cluster_id' : float})
 
 def perform_fdr(
         expression_data : pd.DataFrame,
@@ -41,7 +41,8 @@ def perform_fdr(
         regressor_type,
         regressor_args,
         apply_bh_correction,
-        apply_westfall_young
+        apply_westfall_young,
+        return_cluster_ids
 ):
     # Extract TF name and target name lists from expression matrix object.
     _, gene_names, tf_names, _ = _prepare_input(expression_data, None, tf_names, "all")
@@ -147,6 +148,11 @@ def perform_fdr(
     if apply_westfall_young:
         fdr_controlled_df["pvalue_westfall_young"] = (fdr_controlled_df['westfall_young']+1)/(num_permutations+1)
     fdr_controlled_df.drop(columns=['westfall_young'], inplace=True)
+    
+    if return_cluster_ids:
+        fdr_controlled_df["cluster_id"] = pd.factorize(fdr_controlled_df["cluster_id"])[0]
+    else:  
+      fdr_controlled_df.drop(columns=['cluster_id'], inplace=True)
     
     return fdr_controlled_df
 
@@ -390,7 +396,8 @@ def create_graph_fdr(expression_matrix: np.ndarray,
                 seed,
                 output_dir,
                 scale_for_tf_sampling,
-                apply_westfall_young
+                apply_westfall_young,
+                target_gene_index
             )
 
             if delayed_link_df is not None:
@@ -462,7 +469,8 @@ def count_computation_medoid_representative(
         seed=DEMON_SEED,
         output_dir=None,
         scale_for_tf_sampling=False,
-        apply_westfall_young=False
+        apply_westfall_young=False,
+        target_gene_index=-1
 ):
 
     partial_input_grn = copy.deepcopy(partial_input_grn)
@@ -483,6 +491,7 @@ def count_computation_medoid_representative(
         val.update({'count': 0.0})
         val.update({'shuffled_occurences': 0})
         val.update({'westfall_young' : 0})
+        val.update({'cluster_id': target_gene_index})
 
     # Iterate for num permutations
     for i in range(n_permutations):
@@ -528,8 +537,8 @@ def count_computation_medoid_representative(
 
     # Change partial input GRN format from dict to df
     partial_input_grn_fdr_df = pd.DataFrame(
-        [(TF, target, v['importance'], v['count'], v['shuffled_occurences'], v['westfall_young']) for (TF, target), v in partial_input_grn.items()],
-        columns=['TF', 'target', 'importance', 'count', 'shuffled_occurences', 'westfall_young']
+        [(TF, target, v['importance'], v['count'], v['shuffled_occurences'], v['westfall_young'], v['cluster_id']) for (TF, target), v in partial_input_grn.items()],
+        columns=['TF', 'target', 'importance', 'count', 'shuffled_occurences', 'westfall_young', 'cluster_id']
     )
 
     if not output_dir is None:
@@ -567,6 +576,7 @@ def count_computation_sampled_representative(
         val.update({'count': 0.0})
         val.update({'shuffled_occurences': 0})
         val.update({'westfall_young' : 0})
+        val.update({"cluster_id" : cluster_id})
 
     for perm in range(n_permutations):
         # Retrieve "random" target gene from cluster.
@@ -639,8 +649,8 @@ def count_computation_sampled_representative(
 
     # Change partial input GRN format from dict to df
     partial_input_grn_fdr_df = pd.DataFrame(
-        [(TF, target, v['importance'], v['count'], v['shuffled_occurences'], v['westfall_young']) for (TF, target), v in partial_input_grn.items()],
-        columns=['TF', 'target', 'importance', 'count', 'shuffled_occurences', 'westfall_young']
+        [(TF, target, v['importance'], v['count'], v['shuffled_occurences'], v['westfall_young'], v["cluster_id"]) for (TF, target), v in partial_input_grn.items()],
+        columns=['TF', 'target', 'importance', 'count', 'shuffled_occurences', 'westfall_young', "cluster_id"]
     )
 
     if not output_dir is None:

@@ -32,7 +32,8 @@ def signifikante_fdr(
         inference_mode : str = "grnboost2",
         apply_bh_correction : bool = False,
         normalize_gene_expression : bool = False,
-        apply_westfall_young : bool = False
+        apply_westfall_young : bool = False,
+        return_cluster_ids : bool = False
 ):
     """
         :param expression_data: Expression matrix with genes as columns and samples as rows.
@@ -58,6 +59,7 @@ def signifikante_fdr(
         :param apply_bh_correction: Whether or not to additionally return Benjamini-Hochberg adjusted P-values.
         :param normalize_gene_expression: Whether or not to apply z-score normalization on gene columns in input expression matrix.
         :param apply_westfall_young: Whether or not to additionally return Westfall-Young adjusted P-values.
+        :param return_cluster_ids: Whether or not to return cluster IDs for each target gene.
         :return: Pandas DataFrame with columns 'TF', 'target', 'importance', 'pvalue' representing P-values on each gene regulatory link.
     """
     if cluster_representative_mode not in {'medoid', 'random', 'all_genes'}:
@@ -169,7 +171,8 @@ def signifikante_fdr(
         regressor_type,
         regressor_args,
         apply_bh_correction,
-        apply_westfall_young
+        apply_westfall_young, 
+        return_cluster_ids
     )
 
 
