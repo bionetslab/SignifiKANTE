@@ -137,6 +137,31 @@ def cluster_genes_to_dict(input_matrix : pd.DataFrame, num_clusters : int, mode 
         medoids = compute_medoids(gene_to_cluster, input_matrix)
         return gene_to_cluster, medoids
     
+    elif mode == 'distance-kmedoids':
+        from sklearn_extra.cluster import KMedoids
+
+        X = input_matrix.to_numpy()
+        gene_names = input_matrix.columns.to_list()
+
+        kmedoids = KMedoids(
+            n_clusters=num_clusters,
+            metric="precomputed",
+            random_state=42
+        )
+
+        cluster_labels = kmedoids.fit_predict(X)
+
+        gene_to_cluster = {
+            name: cid for name, cid in zip(gene_names, cluster_labels)
+        }
+
+        medoid_indices = kmedoids.medoid_indices_
+        medoids = {
+            cid: gene_names[idx] for cid, idx in enumerate(medoid_indices)
+        }
+
+        return gene_to_cluster, medoids
+    
     elif mode=='kmeans':
         num_samples = len(input_matrix.index)
         # Perform PCA on columns of expression matrix.

@@ -86,6 +86,12 @@ def perform_fdr(
         elif target_cluster_mode == 'wasserstein':
             target_to_clust, target_medoids = cluster_genes_to_dict(dist_matrix_all, num_clusters=num_non_tf_clusters,
                                                                     mode='distance')
+        elif target_cluster_mode == 'wasserstein-spectral':
+            target_to_clust, target_medoids = cluster_genes_to_dict(dist_matrix_all, num_clusters=num_non_tf_clusters,
+                                                                    mode='distance-spectral')
+        elif target_cluster_mode == 'wasserstein-kmedoids':
+            target_to_clust, target_medoids = cluster_genes_to_dict(dist_matrix_all, num_clusters=num_non_tf_clusters,
+                                                                    mode='distance-kmedoids')
         else:
             print(f'Unknown target cluster mode: {target_cluster_mode}')
 
