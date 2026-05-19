@@ -70,7 +70,7 @@ def perform_fdr(
         are_tfs_clustered = False
     else:
         # In case of Wasserstein clustering on targets, compute whole distance matrix on all targets.
-        if target_cluster_mode == 'wasserstein':
+        if target_cluster_mode in ['wasserstein', 'wasserstein-spectral', 'wasserstein-kmedoids']:
             dist_matrix_all = compute_wasserstein_distance_matrix(expression_data, num_threads=-1)
 
         if tf_cluster_mode == 'correlation' or tf_cluster_mode == "kmeans":
@@ -93,7 +93,7 @@ def perform_fdr(
             target_to_clust, target_medoids = cluster_genes_to_dict(dist_matrix_all, num_clusters=num_non_tf_clusters,
                                                                     mode='distance-kmedoids')
         else:
-            print(f'Unknown target cluster mode: {target_cluster_mode}')
+            raise ValueError(f'ERROR: Unknown target cluster mode: {target_cluster_mode}')
 
         if tf_cluster_mode == 'correlation':
             tf_to_clust, tf_medoids = cluster_genes_to_dict(corr_distances_tfs, num_clusters=num_tf_clusters, mode='distance')
@@ -101,7 +101,7 @@ def perform_fdr(
             tf_to_clust, tf_medoids = cluster_genes_to_dict(exp_matrix_tfs, num_clusters=num_tf_clusters,
                                                             mode='kmeans')
         else:
-            print(f'Unknown TF cluster mode: {tf_cluster_mode}')
+            raise ValueError(f'Unknown TF cluster mode: {tf_cluster_mode}')
 
         if not output_dir is None:
             with open(os.path.join(output_dir, 'tf_clustering.pkl'), 'wb') as f:

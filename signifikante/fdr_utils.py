@@ -138,7 +138,6 @@ def cluster_genes_to_dict(input_matrix : pd.DataFrame, num_clusters : int, mode 
         return gene_to_cluster, medoids
     
     elif mode == 'distance-kmedoids':
-        from sklearn_extra.cluster import KMedoids
 
         X = input_matrix.to_numpy()
         gene_names = input_matrix.columns.to_list()
@@ -156,9 +155,7 @@ def cluster_genes_to_dict(input_matrix : pd.DataFrame, num_clusters : int, mode 
         }
 
         medoid_indices = kmedoids.medoid_indices_
-        medoids = {
-            cid: gene_names[idx] for cid, idx in enumerate(medoid_indices)
-        }
+        medoids = [input_matrix.columns[idx] for idx in medoid_indices]
 
         return gene_to_cluster, medoids
     
