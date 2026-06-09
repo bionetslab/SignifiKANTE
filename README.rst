@@ -105,17 +105,16 @@ Below, you can find a more detailed description of the parameters of SignifiKANT
 Additional parameters of SignifiKANTE's FDR control:
 
 - :code:`normalize_gene_expression [bool]` :  Whether or not to apply z-score normalization on gene columns in input expression matrix.
-
-
 - :code:`inference_mode [str]`: Which GRN inference method to use under the hood. Can be one of "grnboost2", "genie3", "xgboost", "lasso" (Lasso regression), "svr" (support vector regression), "ridge" (Bayesian ridge regression), "elastic" (ElasticNet regression), and "omp" (Orthogonal matching pursuit). Defaults to "grnboost2".
 - :code:`num_permutations [int]`: How many permutations to perform for random background model for empirical P-value computation. Defaults to 1000.
 - :code:`tf_names [list]`: List of strings representing TF names. Should be subset of gene names contained in :code:`expression_data`. Defaults to None. If no list is given, all genes are treated as potential TFs.
 - :code:`apply_bh_correction [bool]`: Whether or not to additionally return Benjamini-Hochberg adjusted P-values.
+- :code:`apply_westfall_young [bool]`: Whether or not to additionally return Westfall-Young corrected P-values.
+- :code:`target_cluster_mode [str]`: Indicates, which clustering to use for target gene clustering. Defaults to hierarchical clustering based on the wasserstein distance matrix ("wasserstein"). You can alternatively choose to cluster the wasserstein distance matrix using K-medoids clustering ("wasserstein-kmedoids") or spectral clustering ("wasserstein-spectral").
 - :code:`input_grn [pd.DataFrame]`: Reference GRN to use for FDR control. Needs to possess columns 'TF', 'target', 'importance'. Should only be used, when it is clear that this GRN is inferred using the same method indicated in :code:`inference_mode`. Defaults to None. If no reference GRN is given, a new one is inferred in the beginning.
 - :code:`target_subset [list]`: Subset of target genes to consider for FDR control. Only compatible with "all_genes" FDR mode.
 - :code:`num_target_clusters [int]`: Number of target gene clusters. If set to -1, no target gene clustering will be applied. Defaults to -1.
 - :code:`num_tf_clusters [int]`: Experimental feature. Used for setting the number of desired TF clusters, if set to -1, no TF clustering will be applied. Defaults to -1.
-- :code:`target_cluster_mode [str]`: Experimental feature. Indicates, which clustering to use for target gene clustering. Defaults to "wasserstein".
 - :code:`tf_cluster_mode [str]`: Experimental feature. Indicates, which clustering mode to use for TF clustering. Defaults to "correlation".
 - :code:`scale_for_tf_sampling [bool]`: Experimental feature. Whether or not to keep track of occurences of edges in permuted GRNs. Defaults to False.
 
@@ -201,6 +200,15 @@ Finally, in the function :code:`to_feature_importances`, you have to implement t
         return scores
 
 Done, you have successfully added your new desired regression method for GRN inference!
+
+Heuristic for finding an optimal number of clusters
+***************************************************
+We recommend using the function :code:`find_optimal_number_of_clusters(pd.DataFrame)` on any expression matrix (with genes as columns) to obtain suggested values for the number of target gene clusters. You can easily import the function with 
+
+.. code-block:: python
+
+   from signifikante.algo import find_optimal_number_of_clusters
+
 
 Unit tests
 **********
