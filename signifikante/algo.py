@@ -509,4 +509,4 @@ def find_optimal_number_of_clusters(expression_mat : pd.DataFrame):
     :param expression_mat: Gene expression matrix with genes as columns and samples as rows.
     :return: Pandas DataFrame with columns 'n_clusters' and 'mean_cluster_diameter' representing the mean cluster diameter for each number of clusters.
     """
-    return run_heuristic(expression_mat, max_clusters=100, decrease_fraction=0.02)
+    return run_heuristic(expression_mat, max_clusters=100, decrease_fraction=0.015)
