@@ -120,7 +120,7 @@ Additional parameters of SignifiKANTE's FDR control:
 
 Further more technical parameters:
 
-- :code:`client [str,Dask.Client]`: Whether to perform computation on given input Dask Cluster object, or to create a new local one ("local"). Defaults to "local".
+- :code:`client_or_address [str,Dask.Client]`: Whether to perform computation on given input Dask Cluster object, or to create a new local one ("local"). Defaults to "local".
 - :code:`early_stop_window_length [int]`: Window length to use for early stopping. Defaults to 25.
 - :code:`seed [int]`: Random seed for regressor models. Defaults to None.
 - :code:`verbose [bool]`: Whether or not to print detailed additional information. Defaults to False.
