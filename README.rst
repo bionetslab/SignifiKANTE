@@ -88,7 +88,7 @@ We provide an efficient FDR control for regulatory links based on any given regr
                     normalize_gene_expression=True,
                     tf_names=tf_list,
                     cluster_representative_mode="random",
-                    num_target_clusters=2,
+                    num_target_clusters=100,
                     inference_mode="grnboost2",
                     apply_bh_correction=True)
         print(fdr_grn)
