@@ -12,6 +12,7 @@ from os.path import join
 
 from signifikante.algo import _prepare_input, _prepare_client
 from signifikante.algo import grnboost2, genie3, extra_trees, xgboost, lasso
+from signifikante.algo import svr, ridge, elastic, omp, find_optimal_number_of_clusters
 from signifikante.utils import *
 
 
@@ -175,9 +176,29 @@ class LaunchTests(TestCase):
         network_df = lasso(df, tf_names=tfs, verbose=True)
         self.assertEqual(len(network_df.columns), 3)
         
+    def test_launch_svr(self):
+        network_df = svr(df, tf_names=tfs, verbose=True)
+        self.assertEqual(len(network_df.columns), 3)
+    
+    def test_launch_ridge(self):
+        network_df = ridge(df, tf_names=tfs, verbose=True)
+        self.assertEqual(len(network_df.columns), 3)
+        
+    def test_launch_elastic(self):
+        network_df = elastic(df, tf_names=tfs, verbose=True)
+        self.assertEqual(len(network_df.columns), 3)
+        
+    def test_launch_omp(self):
+        network_df = omp(df, tf_names=tfs, verbose=True)
+        self.assertEqual(len(network_df.columns), 3)
+        
     def test_launch_lasso_with_local_client(self):
         lc = LocalCluster(diagnostics_port=None)
         passed = Client(lc)
         network_df = lasso(df, tf_names=tfs, client_or_address=passed)
         self.assertEqual(len(network_df.columns), 3) 
+        
+    def test_heuristic(self):
+        l = find_optimal_number_of_clusters(df)
+        self.assertTrue(l >= 1 and l <= 50)
     

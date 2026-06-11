@@ -82,12 +82,30 @@ class TestFDR(TestCase):
                                    target_subset=["target1", 'target2'],
                                    seed=42,
                                    client_or_address=client)
-    def test_lasso_fdr(self):
+    def test_lasso_fdr_spectral(self):
         fdr_grn = signifikante_fdr(expression_data=df,
                                    tf_names=tfs,
                                    input_grn=ref_grn,
                                    cluster_representative_mode="medoid",
                                    num_target_clusters=5,
+                                   target_cluster_mode="wasserstein-spectral",
+                                   output_dir="test_output/",
+                                   num_permutations=10,
+                                   normalize_gene_expression=True,
+                                   scale_for_tf_sampling=True,
+                                   inference_mode="lasso",
+                                   seed=42,
+                                   client_or_address=client)
+        self.assertGreater(len(fdr_grn), 10)
+        self.assertEqual(len(fdr_grn.columns), 6)
+        
+    def test_lasso_fdr_kmedoids(self):
+        fdr_grn = signifikante_fdr(expression_data=df,
+                                   tf_names=tfs,
+                                   input_grn=ref_grn,
+                                   cluster_representative_mode="medoid",
+                                   num_target_clusters=5,
+                                   target_cluster_mode="wasserstein-kmedoids",
                                    output_dir="test_output/",
                                    num_permutations=10,
                                    normalize_gene_expression=True,
@@ -159,6 +177,87 @@ class TestFDR(TestCase):
                                    client_or_address=client)
         self.assertGreater(len(fdr_grn),10)
         self.assertEqual(len(fdr_grn.columns),4)
+        
+    def test_svr_fdr(self):
+        fdr_grn = signifikante_fdr(expression_data=df,
+                                   tf_names=tfs,
+                                   input_grn=ref_grn,
+                                   cluster_representative_mode="all_genes",
+                                   num_permutations=3,
+                                   normalize_gene_expression=True,
+                                   inference_mode="svr",
+                                   seed=42,
+                                   apply_westfall_young=True,
+                                   client_or_address=client)
+        self.assertGreater(len(fdr_grn),5)
+        self.assertEqual(len(fdr_grn.columns),5)
+        
+    def test_ridge_fdr(self):
+        fdr_grn = signifikante_fdr(expression_data=df,
+                                   tf_names=tfs,
+                                   input_grn=ref_grn,
+                                   cluster_representative_mode="all_genes",
+                                   num_permutations=3,
+                                   normalize_gene_expression=True,
+                                   inference_mode="ridge",
+                                   seed=42,
+                                   return_cluster_ids=True,
+                                   client_or_address=client)
+        self.assertGreater(len(fdr_grn),5)
+        self.assertEqual(len(fdr_grn.columns),5)
+        
+    def test_elastic_fdr(self):
+        fdr_grn = signifikante_fdr(expression_data=df,
+                                   tf_names=tfs,
+                                   input_grn=ref_grn,
+                                   cluster_representative_mode="all_genes",
+                                   num_permutations=3,
+                                   normalize_gene_expression=True,
+                                   inference_mode="elastic",
+                                   seed=42,
+                                   client_or_address=client)
+        self.assertGreater(len(fdr_grn),5)
+        self.assertEqual(len(fdr_grn.columns),4)
+        
+    def test_omp_fdr(self):
+        fdr_grn = signifikante_fdr(expression_data=df,
+                                   tf_names=tfs,
+                                   input_grn=ref_grn,
+                                   cluster_representative_mode="all_genes",
+                                   num_permutations=3,
+                                   normalize_gene_expression=True,
+                                   inference_mode="omp",
+                                   seed=42,
+                                   client_or_address=client)
+        self.assertGreater(len(fdr_grn),5)
+        self.assertEqual(len(fdr_grn.columns),4)
+    
+    def test_invalid_fdr_mode(self):
+        with self.assertRaises(ValueError):
+            fdr_grn = signifikante_fdr(expression_data=df,
+                                   tf_names=tfs,
+                                   input_grn=ref_grn,
+                                   cluster_representative_mode="all_genes",
+                                   num_permutations=3,
+                                   normalize_gene_expression=True,
+                                   inference_mode="invalid",
+                                   seed=42,
+                                   client_or_address=client)
+            
+    def test_invalid_cluster_mode(self):
+        with self.assertRaises(ValueError):
+            fdr_grn = signifikante_fdr(expression_data=df,
+                                   tf_names=tfs,
+                                   input_grn=ref_grn,
+                                   num_target_clusters=3,
+                                   cluster_representative_mode="random",
+                                   target_cluster_mode="invalid",
+                                   num_permutations=3,
+                                   normalize_gene_expression=True,
+                                   inference_mode="lasso",
+                                   seed=42,
+                                   client_or_address=client)
+    
         
 class TestWasserstein(TestCase):
     
