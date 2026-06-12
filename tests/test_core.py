@@ -165,14 +165,15 @@ class ComputeGraphTests(TestCase):
 
     
     def test_net1_links_and_meta_3_targets(self):
-        local_cluster = LocalCluster(diagnostics_port=None)
-        client = Client(local_cluster)
+        lc = LocalCluster(diagnostics_port=None)
+        passed = Client(lc)
+        
         network_graph, meta_graph = create_graph(net1_ex_matrix,
                                                  net1_gene_names,
                                                  net1_tf_names,
                                                  "GBM",
                                                  SGBM_KWARGS,
-                                                 client=client,
+                                                 client=passed,
                                                  target_genes=list(self.test_range),
                                                  include_meta=True,
                                                  early_stop_window_length=10)
@@ -181,6 +182,9 @@ class ComputeGraphTests(TestCase):
 
         network_df = result[0]
         meta_df = result[1]
+        
+        passed.close()
+        lc.close()
 
         self.assertEqual(len(self.test_range), len(network_df['target'].unique()))
         self.assertEqual(len(self.test_range), len(meta_df['target'].unique()))
