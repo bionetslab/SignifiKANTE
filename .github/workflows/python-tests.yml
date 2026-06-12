@@ -21,7 +21,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.10"
 
       - name: Install project dependencies
         run: |
@@ -29,6 +29,11 @@ jobs:
           pip install -e .
           pip install coverage setuptools==80.9.0 coverage-badge
 
+      - name: Show environment
+        run: |
+          python --version
+          pip freeze | grep -E 'dask|distributed'
+      
       - name: Run tests and collect coverage
         run: |
           coverage run --source="signifikante" -m unittest discover -s tests -v
