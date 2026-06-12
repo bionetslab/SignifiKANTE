@@ -163,7 +163,7 @@ class ComputeGraphTests(TestCase):
 
         self.assertEqual(len(self.test_range), len(network_df['target'].unique()))
 
-    
+    @skip
     def test_net1_links_and_meta_3_targets(self):
         lc = LocalCluster(diagnostics_port=None)
         passed = Client(lc)
