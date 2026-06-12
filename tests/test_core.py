@@ -163,13 +163,16 @@ class ComputeGraphTests(TestCase):
 
         self.assertEqual(len(self.test_range), len(network_df['target'].unique()))
 
-    @skip
+    
     def test_net1_links_and_meta_3_targets(self):
+        local_cluster = LocalCluster(diagnostics_port=None)
+        client = Client(local_cluster)
         network_graph, meta_graph = create_graph(net1_ex_matrix,
                                                  net1_gene_names,
                                                  net1_tf_names,
                                                  "GBM",
                                                  SGBM_KWARGS,
+                                                 client=client,
                                                  target_genes=list(self.test_range),
                                                  include_meta=True,
                                                  early_stop_window_length=10)
@@ -323,4 +326,74 @@ class AdditionalGRNInferences(TestCase):
 
         to_feature_importances("LASSO",
                            LASSO_KWARGS,
+                           reg)
+        
+    def test_svr(self):
+        target = np.array([0.5, 0.6, 0.2, 0.8])
+        tf_matrix = np.array([[0.5, 0.6],
+                              [0.3, 0.9],
+                              [1.2, 4.5],
+                              [6.7, 2.4]])
+        reg = fit_model("SVR",
+              SVR_KWARGS,
+              tf_matrix,
+              target,
+              early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
+              seed=DEMON_SEED)
+
+        to_feature_importances("SVR",
+                           SVR_KWARGS,
+                           reg)
+    
+    def test_ridge(self):
+        target = np.array([0.5, 0.6, 0.2, 0.8])
+        tf_matrix = np.array([[0.5, 0.6],
+                              [0.3, 0.9],
+                              [1.2, 4.5],
+                              [6.7, 2.4]])
+        reg = fit_model("RIDGE",
+              RIDGE_KWARGS,
+              tf_matrix,
+              target,
+              early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
+              seed=DEMON_SEED)
+
+        to_feature_importances("RIDGE",
+                           RIDGE_KWARGS,
+                           reg)
+        
+    def test_elastic(self):
+        target = np.array([0.5, 0.6, 0.2, 0.8, -1.3, 1.2])
+        tf_matrix = np.array([[0.5, 0.6],
+                              [0.3, 0.9],
+                              [1.2, 4.5],
+                              [6.7, 2.4],
+                              [-1.5, 2.3],
+                              [0.2, -0.2]])
+        reg = fit_model("ELASTIC",
+              ELASTIC_KWARGS,
+              tf_matrix,
+              target,
+              early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
+              seed=DEMON_SEED)
+
+        to_feature_importances("ELASTIC",
+                           ELASTIC_KWARGS,
+                           reg)
+    
+    def test_omp(self):
+        target = np.array([0.5, 0.6, 0.2, 0.8])
+        tf_matrix = np.array([[0.5, 0.6],
+                              [0.3, 0.9],
+                              [1.2, 4.5],
+                              [6.7, 2.4]])
+        reg = fit_model("OMP",
+              OMP_KWARGS,
+              tf_matrix,
+              target,
+              early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
+              seed=DEMON_SEED)
+
+        to_feature_importances("OMP",
+                           OMP_KWARGS,
                            reg)

@@ -310,19 +310,15 @@ def to_links_df(regressor_type,
 
         return clean_links_df[['TF', 'target', 'importance']]
 
-    if is_sklearn_regressor(regressor_type):
-        return pythonic()
-    elif is_xgboost_regressor(regressor_type):
-        return pythonic()
-    elif regressor_type.upper() == "LASSO":
-        return pythonic()
-    elif regressor_type.upper() == "SVR":
-        return pythonic()
-    elif regressor_type.upper() == "RIDGE":
-        return pythonic()
-    elif regressor_type.upper() == "ELASTIC":
-        return pythonic()
-    elif regressor_type.upper() == "OMP":
+    valid_types = {
+    "LASSO", "SVR", "RIDGE", "ELASTIC", "OMP"
+    }
+
+    if (
+        is_sklearn_regressor(regressor_type)
+        or is_xgboost_regressor(regressor_type)
+        or regressor_type.upper() in valid_types
+    ):
         return pythonic()
     else:
         raise ValueError('Unsupported regressor type: ' + regressor_type)
