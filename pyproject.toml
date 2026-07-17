@@ -29,9 +29,9 @@ classifiers = [
 
 # Dependencies for pip installs 
 dependencies = [
-	"dask==2025.11.0",
-	"distributed==2025.11.0",
-	"numpy<2.0",
+	"dask",
+	"distributed",
+	"numpy",
 	"pandas",
 	"scikit-learn",
 	"scipy",
