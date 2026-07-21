@@ -27,7 +27,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
-# Dependencies for pip installs 
+# Dependencies for pip installs
 dependencies = [
 	"dask==2025.11.0",
 	"distributed==2025.11.0",
@@ -35,14 +35,27 @@ dependencies = [
 	"pandas",
 	"scikit-learn",
 	"scipy",
-	"scikit-learn-extra",
-	"setuptools",  # required for scikit-learn-extra under python 3.13
 	"pyarrow",
 	"numba",
-	"pytest",
 	"xgboost",
 	"statsmodels",
 	"sparse"
+]
+
+[project.optional-dependencies]
+# KMedoids-based clustering modes (target/TF cluster modes "kmeans" and
+# "wasserstein-kmedoids") need scikit-learn-extra. It ships no PyPI wheels and
+# must be compiled from source; setuptools is required by it under Python 3.13.
+# It is optional so the core install does not require a build toolchain.
+kmedoids = [
+	"scikit-learn-extra",
+	"setuptools",
+]
+# Test dependencies. Pulls in the kmedoids extra because the test suite
+# exercises the KMedoids clustering paths.
+test = [
+	"pytest",
+	"signifikante[kmedoids]",
 ]
 
 

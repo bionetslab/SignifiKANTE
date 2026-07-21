@@ -46,7 +46,30 @@ or locally from this repository with
     cd SignifiKANTE
     pip install -e .
 
-For installation with pixi, download `pixi <https://pixi.sh/dev/installation/>`_, install and run 
+Optional dependencies
+---------------------
+
+The core install is dependency-light and requires no build toolchain. Two optional
+extras are available:
+
+- :code:`kmedoids` — enables the KMedoids-based clustering modes
+  (:code:`target_cluster_mode="wasserstein-kmedoids"` and the :code:`"kmeans"` modes).
+  It pulls in `scikit-learn-extra <https://pypi.org/project/scikit-learn-extra/>`_, which
+  ships no pre-built wheels and is therefore compiled from source at install time — you
+  need a C compiler (e.g. ``gcc``) and the Python development headers. If you invoke a
+  KMedoids mode without this extra, SignifiKANTE raises an informative
+  :code:`ImportError`.
+- :code:`test` — everything needed to run the test suite (:code:`pytest`, and the
+  :code:`kmedoids` extra, since the tests exercise the KMedoids paths).
+
+Install an extra with
+
+.. code-block:: bash
+
+    pip install 'signifikante[kmedoids]'      # KMedoids clustering modes
+    pip install -e '.[test]'                   # development / running the tests
+
+For installation with pixi, download `pixi <https://pixi.sh/dev/installation/>`_, install and run
 
 .. code-block:: bash
 
@@ -66,7 +89,7 @@ Create a jupyter kernel using pixi.toml/pyproject.toml, which will install a jup
 Example workflow of SignifiKANTE's FDR control
 **********************************************
 
-We provide an efficient FDR control for regulatory links based on any given regression-based GRN inference method. Currently, for GRN inference SignifiKANTE includes GRNBoost2, GENIE3, xgboost, and lasso regression. For the integration of further regression-based GRN inference methods, please see our manual in the section below. Here, we also provide a minimal working example of how to use SignifiKANTE based on GRNBoost2 on a simulated dataset:
+We provide an efficient FDR control for regulatory links based on any given regression-based GRN inference method. Currently, for GRN inference SignifiKANTE includes GRNBoost2, GENIE3, extra trees, xgboost, lasso, support vector regression, Bayesian ridge regression, ElasticNet, and orthogonal matching pursuit. For the integration of further regression-based GRN inference methods, please see our manual in the section below. Here, we also provide a minimal working example of how to use SignifiKANTE based on GRNBoost2 on a simulated dataset:
 
 .. code-block:: python
 
@@ -105,18 +128,19 @@ Below, you can find a more detailed description of the parameters of SignifiKANT
 Additional parameters of SignifiKANTE's FDR control:
 
 - :code:`normalize_gene_expression [bool]` :  Whether or not to apply z-score normalization on gene columns in input expression matrix.
-- :code:`inference_mode [str]`: Which GRN inference method to use under the hood. Can be one of "grnboost2", "genie3", "xgboost", "lasso" (Lasso regression), "svr" (support vector regression), "ridge" (Bayesian ridge regression), "elastic" (ElasticNet regression), and "omp" (Orthogonal matching pursuit). Defaults to "grnboost2".
+- :code:`inference_mode [str]`: Which GRN inference method to use under the hood. Can be one of "grnboost2", "genie3", "extra_trees" (extremely randomized trees), "xgboost", "lasso" (Lasso regression), "svr" (support vector regression), "ridge" (Bayesian ridge regression), "elastic" (ElasticNet regression), and "omp" (Orthogonal matching pursuit). Defaults to "grnboost2".
 - :code:`num_permutations [int]`: How many permutations to perform for random background model for empirical P-value computation. Defaults to 1000.
 - :code:`tf_names [list]`: List of strings representing TF names. Should be subset of gene names contained in :code:`expression_data`. Defaults to None. If no list is given, all genes are treated as potential TFs.
 - :code:`apply_bh_correction [bool]`: Whether or not to additionally return Benjamini-Hochberg adjusted P-values.
 - :code:`apply_westfall_young [bool]`: Whether or not to additionally return Westfall-Young corrected P-values.
-- :code:`target_cluster_mode [str]`: Indicates, which clustering to use for target gene clustering. Defaults to hierarchical clustering based on the wasserstein distance matrix ("wasserstein"). You can alternatively choose to cluster the wasserstein distance matrix using K-medoids clustering ("wasserstein-kmedoids") or spectral clustering ("wasserstein-spectral").
+- :code:`target_cluster_mode [str]`: Indicates, which clustering to use for target gene clustering. Defaults to hierarchical clustering based on the wasserstein distance matrix ("wasserstein"). You can alternatively choose to cluster the wasserstein distance matrix using K-medoids clustering ("wasserstein-kmedoids") or spectral clustering ("wasserstein-spectral"), or K-medoids clustering on PCA-reduced expression ("kmeans"). The K-medoids based modes ("wasserstein-kmedoids" and "kmeans") require the optional :code:`kmedoids` extra (see Installation).
 - :code:`input_grn [pd.DataFrame]`: Reference GRN to use for FDR control. Needs to possess columns 'TF', 'target', 'importance'. Should only be used, when it is clear that this GRN is inferred using the same method indicated in :code:`inference_mode`. Defaults to None. If no reference GRN is given, a new one is inferred in the beginning.
 - :code:`target_subset [list]`: Subset of target genes to consider for FDR control. Only compatible with "all_genes" FDR mode.
-- :code:`num_target_clusters [int]`: Number of target gene clusters. If set to -1, no target gene clustering will be applied. Defaults to -1.
+- :code:`num_target_clusters [int]`: Number of target gene clusters. If set to -1, no target gene clustering will be applied. Defaults to 10.
 - :code:`num_tf_clusters [int]`: Experimental feature. Used for setting the number of desired TF clusters, if set to -1, no TF clustering will be applied. Defaults to -1.
-- :code:`tf_cluster_mode [str]`: Experimental feature. Indicates, which clustering mode to use for TF clustering. Defaults to "correlation".
+- :code:`tf_cluster_mode [str]`: Experimental feature. Indicates, which clustering mode to use for TF clustering. Can be "correlation" or "kmeans" (the latter requires the optional :code:`kmedoids` extra). Defaults to "correlation".
 - :code:`scale_for_tf_sampling [bool]`: Experimental feature. Whether or not to keep track of occurences of edges in permuted GRNs. Defaults to False.
+- :code:`return_cluster_ids [bool]`: Whether or not to add a :code:`cluster_id` column to the returned DataFrame, indicating the target gene cluster each edge belongs to. Defaults to False.
 
 Further more technical parameters:
 
@@ -126,7 +150,7 @@ Further more technical parameters:
 - :code:`verbose [bool]`: Whether or not to print detailed additional information. Defaults to False.
 - :code:`output_dir [str]`: Where to save additional intermediate data to. Defaults to None, i.e. saves no intermediate results.
 
-The function returns a pandas dataframe representing the reference GRN with columns 'TF', 'target', and 'importance'. The column 'pvalue' stores empirical P-values per edge. If :code:`apply_bh_correction=True`, an additional column 'pvalue_bh' is returned.
+The function returns a pandas dataframe representing the reference GRN with columns 'TF', 'target', and 'importance'. The column 'pvalue' stores empirical P-values per edge. If :code:`apply_bh_correction=True`, an additional column 'pvalue_bh' with Benjamini-Hochberg adjusted P-values is returned; if :code:`apply_westfall_young=True`, a 'pvalue_westfall_young' column is added; and if :code:`return_cluster_ids=True`, a 'cluster_id' column is added.
 
 
 
@@ -218,6 +242,14 @@ Unit tests for arboreto-based functionalities, as well as additional tests for S
 .. code-block:: bash
 
     python -m unittest discover -s tests -v
+
+The Numba-accelerated Wasserstein distance tests (:code:`tests/test_numba.py`) must be run with JIT compilation disabled, so that the pure-Python code path is exercised for coverage and assertions:
+
+.. code-block:: bash
+
+    NUMBA_DISABLE_JIT=1 python -m unittest discover -s tests -p 'test_numba.py' -v
+
+Running the tests requires the :code:`test` extra (see Installation), which also provides the optional :code:`kmedoids` dependency exercised by some tests.
 
 
 ​    

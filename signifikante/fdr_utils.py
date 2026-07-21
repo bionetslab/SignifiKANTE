@@ -7,7 +7,24 @@ from sklearn.cluster import AgglomerativeClustering
 from distributed import Client, LocalCluster
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
-from sklearn_extra.cluster import KMedoids
+
+
+def _import_kmedoids():
+    """Lazily import KMedoids from the optional scikit-learn-extra dependency.
+
+    scikit-learn-extra is an optional dependency (it ships no PyPI wheels and must
+    be compiled from source), so it is only imported when a KMedoids-based
+    clustering mode is actually used.
+    """
+    try:
+        from sklearn_extra.cluster import KMedoids
+    except ImportError as exc:
+        raise ImportError(
+            "KMedoids-based clustering modes require scikit-learn-extra, which is "
+            "an optional dependency. Install it with "
+            "`pip install 'signifikante[kmedoids]'` (or `pip install scikit-learn-extra`)."
+        ) from exc
+    return KMedoids
 
 @njit(nogil=True)
 def _merge_sorted_arrays(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -142,6 +159,7 @@ def cluster_genes_to_dict(input_matrix : pd.DataFrame, num_clusters : int, mode 
         X = input_matrix.to_numpy()
         gene_names = input_matrix.columns.to_list()
 
+        KMedoids = _import_kmedoids()
         kmedoids = KMedoids(
             n_clusters=num_clusters,
             metric="precomputed",
@@ -166,6 +184,7 @@ def cluster_genes_to_dict(input_matrix : pd.DataFrame, num_clusters : int, mode 
         pca = PCA(n_components=min(50, num_samples))
         pca_result = pca.fit_transform(input_matrix_transp)
         # Run K-Medoids clustering on PCA-reduced data
+        KMedoids = _import_kmedoids()
         kmedoids = KMedoids(n_clusters=num_clusters, random_state=42)
         kmedoids.fit(pca_result)
         cluster_labels = kmedoids.labels_
