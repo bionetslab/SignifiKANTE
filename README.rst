@@ -252,4 +252,11 @@ The Numba-accelerated Wasserstein distance tests (:code:`tests/test_numba.py`) m
 Running the tests requires the :code:`test` extra (see Installation), which also provides the optional :code:`kmedoids` dependency exercised by some tests.
 
 
-​    
+​Citing SignifiKANTE
+*******************
+
+If you use SignifiKANTE for your work, please cite it as follows: 
+    
+Woller, F., Martini, P., Sen, S., Blumenthal, D. B. & Hartebrodt, A. SignifiKANTE: efficient P-value computation for gene regulatory networks. Bioinformatics 42, btag531 (2026) doi: 10.1093/bioinformatics/btag531.
+  
+
