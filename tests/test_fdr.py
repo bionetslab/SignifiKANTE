@@ -258,7 +258,63 @@ class TestFDR(TestCase):
                                    seed=42,
                                    client_or_address=client)
     
-        
+
+class TestBootstrap(TestCase):
+
+    @staticmethod
+    def _make_bootstrap_data(n_bootstraps=3, seed=42):
+        # Resample rows (samples) of the expression matrix with replacement.
+        rng = np.random.default_rng(seed)
+        return [df.iloc[rng.integers(0, len(df), size=len(df))].reset_index(drop=True)
+                for _ in range(n_bootstraps)]
+
+    def _check_bootstrap_column(self, grn):
+        self.assertIn('bootstrap_val', grn.columns)
+        self.assertTrue(pd.api.types.is_numeric_dtype(grn['bootstrap_val']))
+        self.assertTrue((grn['bootstrap_val'].dropna() >= 0).all())
+
+    def test_grnboost2_bootstrap_output(self):
+        bootstrap_data = self._make_bootstrap_data()
+        grn = grnboost2(df,
+                        tf_names=tfs,
+                        bootstrap=True,
+                        bootstrap_data=bootstrap_data,
+                        seed=42,
+                        client_or_address=client)
+        self.assertTrue(isinstance(grn, pd.DataFrame))
+        self.assertGreater(len(grn), 10)
+        self.assertEqual(len(grn.columns), 4)
+        self.assertTrue(set(grn['TF']).issubset(set(tfs)))
+        self._check_bootstrap_column(grn)
+
+    def test_fdr_bootstrap_output(self):
+        bootstrap_data = self._make_bootstrap_data()
+        fdr_grn = signifikante_fdr(expression_data=df,
+                                   tf_names=tfs,
+                                   cluster_representative_mode="all_genes",
+                                   num_permutations=10,
+                                   bootstrap=True,
+                                   bootstrap_data=bootstrap_data,
+                                   seed=42,
+                                   client_or_address=client)
+        self.assertTrue(isinstance(fdr_grn, pd.DataFrame))
+        self.assertGreater(len(fdr_grn), 10)
+        self.assertEqual(len(fdr_grn.columns), 5)
+        self.assertTrue(min(fdr_grn['pvalue']) >= (1.0/11))
+        self.assertTrue(max(fdr_grn['pvalue']) <= 1.0)
+        self._check_bootstrap_column(fdr_grn)
+
+    def test_fdr_bootstrap_empty_data(self):
+        with self.assertRaises(ValueError):
+            signifikante_fdr(expression_data=df,
+                             tf_names=tfs,
+                             cluster_representative_mode="all_genes",
+                             num_permutations=3,
+                             bootstrap=True,
+                             bootstrap_data=[],
+                             seed=42,
+                             client_or_address=client)
+
 class TestWasserstein(TestCase):
     
     def test_wasserstein_against_scipy(self):
