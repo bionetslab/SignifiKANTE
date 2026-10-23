@@ -7,3 +7,5 @@ test_output/
 # Ignore the Python coverage data file
 .coverage
 
+# Ignore build artifacts from python -m build
+dist/
