@@ -252,7 +252,7 @@ The Numba-accelerated Wasserstein distance tests (:code:`tests/test_numba.py`) m
 Running the tests requires the :code:`test` extra (see Installation), which also provides the optional :code:`kmedoids` dependency exercised by some tests.
 
 
-​Citing SignifiKANTE
+Citing SignifiKANTE
 *******************
 
 If you use SignifiKANTE for your work, please cite it as follows: 
