@@ -1,6 +1,6 @@
 
 from unittest import TestCase
-from signifikante.algo import signifikante_fdr, grnboost2
+from signifikante.algo import signifikante_fdr, grnboost2, xgboost
 from signifikante.core import SGBM_KWARGS
 from signifikante.fdr import count_computation_medoid_representative, count_computation_sampled_representative
 from signifikante.fdr_utils import compute_wasserstein_distance_matrix
@@ -268,23 +268,35 @@ class TestBootstrap(TestCase):
         return [df.iloc[rng.integers(0, len(df), size=len(df))].reset_index(drop=True)
                 for _ in range(n_bootstraps)]
 
+    SHAP_COLUMNS = ['shap_mean', 'shap_median', 'shap_std', 'max_rank_diff']
+
     def _check_bootstrap_column(self, grn):
-        self.assertIn('bootstrap_val', grn.columns)
-        self.assertTrue(pd.api.types.is_numeric_dtype(grn['bootstrap_val']))
-        self.assertTrue((grn['bootstrap_val'].dropna() >= 0).all())
+        for column in self.SHAP_COLUMNS:
+            self.assertIn(column, grn.columns)
+            self.assertTrue(pd.api.types.is_numeric_dtype(grn[column]))
+            self.assertTrue((grn[column].dropna() >= 0).all())
 
     def test_grnboost2_bootstrap_output(self):
         bootstrap_data = self._make_bootstrap_data()
         grn = grnboost2(df,
                         tf_names=tfs,
-                        bootstrap=True,
-                        bootstrap_data=bootstrap_data,
+                        bootstraps=bootstrap_data,
                         seed=42,
                         client_or_address=client)
         self.assertTrue(isinstance(grn, pd.DataFrame))
         self.assertGreater(len(grn), 10)
-        self.assertEqual(len(grn.columns), 4)
+        self.assertEqual(len(grn.columns), 7)
         self.assertTrue(set(grn['TF']).issubset(set(tfs)))
+        self._check_bootstrap_column(grn)
+
+    def test_xgboost_bootstrap_output(self):
+        bootstrap_data = self._make_bootstrap_data()
+        grn = xgboost(df,
+                      tf_names=tfs,
+                      bootstraps=bootstrap_data,
+                      seed=42,
+                      client_or_address=client)
+        self.assertEqual(len(grn.columns), 7)
         self._check_bootstrap_column(grn)
 
     def test_fdr_bootstrap_output(self):
@@ -293,27 +305,27 @@ class TestBootstrap(TestCase):
                                    tf_names=tfs,
                                    cluster_representative_mode="all_genes",
                                    num_permutations=10,
-                                   bootstrap=True,
-                                   bootstrap_data=bootstrap_data,
+                                   bootstraps=bootstrap_data,
                                    seed=42,
                                    client_or_address=client)
         self.assertTrue(isinstance(fdr_grn, pd.DataFrame))
         self.assertGreater(len(fdr_grn), 10)
-        self.assertEqual(len(fdr_grn.columns), 5)
+        self.assertEqual(len(fdr_grn.columns), 8)
         self.assertTrue(min(fdr_grn['pvalue']) >= (1.0/11))
         self.assertTrue(max(fdr_grn['pvalue']) <= 1.0)
         self._check_bootstrap_column(fdr_grn)
 
-    def test_fdr_bootstrap_empty_data(self):
-        with self.assertRaises(ValueError):
-            signifikante_fdr(expression_data=df,
-                             tf_names=tfs,
-                             cluster_representative_mode="all_genes",
-                             num_permutations=3,
-                             bootstrap=True,
-                             bootstrap_data=[],
-                             seed=42,
-                             client_or_address=client)
+    def test_fdr_bootstrap_empty_list(self):
+        # An empty bootstrap list means no bootstrapping, i.e. no extra column.
+        fdr_grn = signifikante_fdr(expression_data=df,
+                                   tf_names=tfs,
+                                   cluster_representative_mode="all_genes",
+                                   num_permutations=3,
+                                   bootstraps=[],
+                                   seed=42,
+                                   client_or_address=client)
+        self.assertNotIn('shap_mean', fdr_grn.columns)
+        self.assertEqual(len(fdr_grn.columns), 4)
 
 class TestWasserstein(TestCase):
     

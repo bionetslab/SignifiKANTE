@@ -11,7 +11,8 @@ from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor, E
 from dask import delayed
 from dask.dataframe import from_delayed
 from dask.dataframe.utils import make_meta
-from xgboost import XGBRegressor
+import shap
+from xgboost import XGBRegressor, DMatrix
 from sklearn.linear_model import Lasso
 from sklearn.svm import SVR as _sklearn_SVR
 from sklearn.linear_model import BayesianRidge as _sklearn_BayesianRidge
@@ -272,6 +273,36 @@ def to_feature_importances(regressor_type,
         return trained_regressor.feature_importances_
 
 
+def to_shap_stats(regressor_type,
+                  trained_regressor,
+                  bootstrap_tf_matrices,
+                  importances):
+    """
+    :param regressor_type: string. Case insensitive.
+    :param trained_regressor: the trained model to explain.
+    :param bootstrap_tf_matrices: list of bootstrapped predictor matrices, same columns as the training tf_matrix.
+    :param importances: the model feature importances, used as reference ranking.
+    :return: a Pandas DataFrame['shap_mean', 'shap_median', 'shap_std', 'max_rank_diff'] with one row per TF,
+             computed over the per-bootstrap mean absolute SHAP values.
+    """
+    if is_xgboost_regressor(regressor_type):
+        booster = trained_regressor.get_booster()
+        # last column of pred_contribs is the bias term
+        shap_values = [booster.predict(DMatrix(m), pred_contribs=True)[:, :-1] for m in bootstrap_tf_matrices]
+    else:
+        explainer = shap.TreeExplainer(trained_regressor)
+        shap_values = [explainer.shap_values(m) for m in bootstrap_tf_matrices]
+
+    per_bootstrap = np.stack([np.abs(s).mean(axis=0) for s in shap_values])
+    importance_ranks = scipy.stats.rankdata(-importances)
+    bootstrap_ranks = np.apply_along_axis(scipy.stats.rankdata, 1, -per_bootstrap)
+
+    return pd.DataFrame({'shap_mean': per_bootstrap.mean(axis=0),
+                         'shap_median': np.median(per_bootstrap, axis=0),
+                         'shap_std': per_bootstrap.std(axis=0),
+                         'max_rank_diff': np.abs(bootstrap_ranks - importance_ranks).max(axis=0)})
+
+
 def to_meta_df(trained_regressor,
                target_gene_name):
     """
@@ -288,13 +319,15 @@ def to_links_df(regressor_type,
                 regressor_kwargs,
                 trained_regressor,
                 tf_matrix_gene_names,
-                target_gene_name):
+                target_gene_name,
+                shap_stats_df=None):
     """
     :param regressor_type: string. Case insensitive.
     :param regressor_kwargs: dict of key-value pairs that configures the regressor.
     :param trained_regressor: the trained model from which to extract the feature importances.
     :param tf_matrix_gene_names: the list of names corresponding to the columns of the tf_matrix used to train the model.
     :param target_gene_name: the name of the target gene.
+    :param shap_stats_df: optional DataFrame of bootstrap SHAP statistics, one row per TF, appended as columns.
     :return: a Pandas DataFrame['TF', 'target', 'importance'] representing inferred regulatory links and their
              connection strength.
     """
@@ -305,10 +338,13 @@ def to_links_df(regressor_type,
 
         links_df = pd.DataFrame({'TF': tf_matrix_gene_names, 'importance': feature_importances})
         links_df['target'] = target_gene_name
+        if shap_stats_df is not None:
+            links_df = pd.concat([links_df, shap_stats_df], axis=1)
 
         clean_links_df = links_df[links_df.importance > 0].sort_values(by='importance', ascending=False)
 
-        return clean_links_df[['TF', 'target', 'importance']]
+        shap_columns = [] if shap_stats_df is None else list(shap_stats_df.columns)
+        return clean_links_df[['TF', 'target', 'importance'] + shap_columns]
 
     valid_types = {
     "LASSO", "SVR", "RIDGE", "ELASTIC", "OMP"
@@ -392,7 +428,8 @@ def infer_partial_network(regressor_type,
                           target_gene_expression,
                           include_meta=False,
                           early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
-                          seed=DEMON_SEED):
+                          seed=DEMON_SEED,
+                          bootstrap_tf_matrices=None):
     """
     Ties together regressor model training with regulatory links and meta data extraction.
 
@@ -406,6 +443,8 @@ def infer_partial_network(regressor_type,
     :param include_meta: whether to also return the meta information DataFrame.
     :param early_stop_window_length: window length of the early stopping monitor.
     :param seed: (optional) random seed for the regressors.
+    :param bootstrap_tf_matrices: (optional) list of bootstrapped predictor matrices. If given, bootstrap SHAP
+                                  statistics are added to the links DataFrame.
     :return: if include_meta == True, return links_df, meta_df
 
              link_df: a Pandas DataFrame['TF', 'target', 'importance'] containing inferred regulatory links and their
@@ -428,8 +467,15 @@ def infer_partial_network(regressor_type,
         except ValueError as e:
             raise ValueError("Regression for target gene {0} failed. Cause {1}.".format(target_gene_name, repr(e)))
 
+        shap_stats_df = None
+        if bootstrap_tf_matrices is not None:
+            clean_bootstrap_tf_matrices = [clean(m, tf_matrix_gene_names, target_gene_name)[0]
+                                           for m in bootstrap_tf_matrices]
+            importances = to_feature_importances(regressor_type, regressor_kwargs, trained_regressor)
+            shap_stats_df = to_shap_stats(regressor_type, trained_regressor, clean_bootstrap_tf_matrices, importances)
+
         links_df = to_links_df(regressor_type, regressor_kwargs, trained_regressor, clean_tf_matrix_gene_names,
-                               target_gene_name)
+                               target_gene_name, shap_stats_df)
 
         if include_meta:
             meta_df = to_meta_df(trained_regressor, target_gene_name)
@@ -438,7 +484,8 @@ def infer_partial_network(regressor_type,
         else:
             return links_df
 
-    fallback_result = (_GRN_SCHEMA, _META_SCHEMA) if include_meta else _GRN_SCHEMA
+    grn_schema = _GRN_SCHEMA if bootstrap_tf_matrices is None else _GRN_SHAP_SCHEMA
+    fallback_result = (grn_schema, _META_SCHEMA) if include_meta else grn_schema
 
     return retry(fn,
                  fallback_result=fallback_result,
@@ -480,6 +527,8 @@ def target_gene_indices(gene_names,
 
 
 _GRN_SCHEMA = make_meta({'TF': str, 'target': str, 'importance': float})
+_GRN_SHAP_SCHEMA = make_meta({'TF': str, 'target': str, 'importance': float, 'shap_mean': float,
+                              'shap_median': float, 'shap_std': float, 'max_rank_diff': float})
 _META_SCHEMA = make_meta({'target': str, 'n_estimators': int})
 
 
@@ -494,7 +543,8 @@ def create_graph(expression_matrix,
                  include_meta=False,
                  early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
                  repartition_multiplier=1,
-                 seed=DEMON_SEED):
+                 seed=DEMON_SEED,
+                 bootstrap_matrices=None):
     """
     Main API function. Create a Dask computation graph.
 
@@ -513,6 +563,8 @@ def create_graph(expression_matrix,
     :param early_stop_window_length: window length of the early stopping monitor.
     :param repartition_multiplier: multiplier
     :param seed: (optional) random seed for the regressors. Default 666.
+    :param bootstrap_matrices: (optional) list of bootstrapped expression matrices with the same shape as
+                               expression_matrix. Only used for tree-based regressors, to compute SHAP statistics.
     :return: if include_meta is False, returns a Dask graph that computes the links DataFrame.
              If include_meta is True, returns a tuple: the links DataFrame and the meta DataFrame.
     """
@@ -526,6 +578,17 @@ def create_graph(expression_matrix,
     # [1] wrap in a list of 1 -> unsure why but Matt. Rocklin does this often...
     [future_tf_matrix_gene_names] = client.scatter([tf_matrix_gene_names], broadcast=True)
 
+    with_shap = bool(bootstrap_matrices) and \
+        (is_sklearn_regressor(regressor_type) or is_xgboost_regressor(regressor_type))
+    if bootstrap_matrices and not with_shap:
+        logger.warning('SHAP is only supported for tree-based regressors, ignoring bootstraps.')
+
+    future_bootstrap_tf_matrices = None
+    if with_shap:
+        bootstrap_tf_matrices = [to_tf_matrix(m, gene_names, tf_names)[0] for m in bootstrap_matrices]
+        [future_bootstrap_tf_matrices] = client.scatter([bootstrap_tf_matrices], broadcast=True)
+    grn_schema = _GRN_SHAP_SCHEMA if with_shap else _GRN_SCHEMA
+
     delayed_link_dfs = []  # collection of delayed link DataFrames
     delayed_meta_dfs = []  # collection of delayed meta DataFrame
 
@@ -537,7 +600,8 @@ def create_graph(expression_matrix,
             delayed_link_df, delayed_meta_df = delayed(infer_partial_network, pure=True, nout=2)(
                 regressor_type, regressor_kwargs,
                 future_tf_matrix, future_tf_matrix_gene_names,
-                target_gene_name, target_gene_expression, include_meta, early_stop_window_length, seed)
+                target_gene_name, target_gene_expression, include_meta, early_stop_window_length, seed,
+                future_bootstrap_tf_matrices)
 
             if delayed_link_df is not None:
                 delayed_link_dfs.append(delayed_link_df)
@@ -546,13 +610,14 @@ def create_graph(expression_matrix,
             delayed_link_df = delayed(infer_partial_network, pure=True)(
                 regressor_type, regressor_kwargs,
                 future_tf_matrix, future_tf_matrix_gene_names,
-                target_gene_name, target_gene_expression, include_meta, early_stop_window_length, seed)
+                target_gene_name, target_gene_expression, include_meta, early_stop_window_length, seed,
+                future_bootstrap_tf_matrices)
 
             if delayed_link_df is not None:
                 delayed_link_dfs.append(delayed_link_df)
 
     # gather the DataFrames into one distributed DataFrame
-    all_links_df = from_delayed(delayed_link_dfs, meta=_GRN_SCHEMA)        
+    all_links_df = from_delayed(delayed_link_dfs, meta=grn_schema)
 
     # optionally limit the number of resulting regulatory links, descending by top importance
     if limit:

@@ -38,6 +38,7 @@ dependencies = [
 	"pyarrow",
 	"numba",
 	"xgboost",
+	"shap",
 	"statsmodels",
 	"sparse"
 ]
@@ -64,18 +65,19 @@ channels = ["conda-forge"]
 platforms = ["linux-64"]
 
 [tool.pixi.dependencies]
-python = "*" # Ensure Python is defined as a dependency
-dask = "*"
-distributed = "*"
-numpy = "*" 
+python = ">=3.10,<3.14" # Ensure Python is defined as a dependency
+dask = "==2025.11.0"
+distributed = "==2025.11.0"
+numpy = "<2.0"
 pandas = "*"
 scikit-learn = "*"
 scipy = "*"
 scikit-learn-extra = "*"
-pyarrow = "*" 
+pyarrow = "<20"
 numba = "*"
 pytest = "*"
 xgboost = "*"
+shap = "*"
 statsmodels = "*"
 sparse = "*"
 
@@ -103,6 +105,7 @@ pyarrow = "*"
 ipykernel = "*"
 numba = "*"
 xgboost="*"
+shap = "*"
 statsmodels = "*"
 sparse = "*"
 
