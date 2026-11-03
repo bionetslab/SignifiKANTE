@@ -102,6 +102,14 @@ def is_xgboost_regressor(regressor_type):
     return regressor_type.upper() == 'XGB'
 
 
+def is_tree_regressor(regressor_type):
+    """
+    :param regressor_type: string. Case insensitive.
+    :return: whether the regressor type is tree-based, i.e. supports SHAP statistics.
+    """
+    return is_sklearn_regressor(regressor_type) or is_xgboost_regressor(regressor_type)
+
+
 def is_oob_heuristic_supported(regressor_type, regressor_kwargs):
     """
     :param regressor_type: on
@@ -303,6 +311,34 @@ def to_shap_stats(regressor_type,
                          'max_rank_diff': np.abs(bootstrap_ranks - importance_ranks).max(axis=0)})
 
 
+def to_mse_stats(trained_regressor,
+                 tf_matrix,
+                 target_gene_expression,
+                 bootstrap_target_expressions,
+                 bootstrap_tf_matrices=None):
+    """
+    :param trained_regressor: the trained model.
+    :param tf_matrix: the predictor matrix the model was trained on.
+    :param target_gene_expression: the target expression the model was trained on.
+    :param bootstrap_target_expressions: list of bootstrapped target expression vectors.
+    :param bootstrap_tf_matrices: (optional) list of bootstrapped predictor matrices, one per bootstrap target vector.
+                                  If None, the predictors are not bootstrapped and the model predicts from tf_matrix.
+    :return: a dict {'mse', 'mse_bootstrap_median'}: the mean squared error of the model predictions on the training
+             data, and the median over the bootstraps of the mean squared error on each bootstrap.
+    """
+    prediction = trained_regressor.predict(tf_matrix)
+    mse = np.mean((np.ravel(target_gene_expression) - prediction) ** 2)
+
+    if bootstrap_tf_matrices is None:
+        bootstrap_predictions = [prediction] * len(bootstrap_target_expressions)
+    else:
+        bootstrap_predictions = [trained_regressor.predict(m) for m in bootstrap_tf_matrices]
+    bootstrap_mses = [np.mean((np.ravel(y) - p) ** 2)
+                      for y, p in zip(bootstrap_target_expressions, bootstrap_predictions)]
+
+    return {'mse': mse, 'mse_bootstrap_median': np.median(bootstrap_mses)}
+
+
 def to_meta_df(trained_regressor,
                target_gene_name):
     """
@@ -320,14 +356,15 @@ def to_links_df(regressor_type,
                 trained_regressor,
                 tf_matrix_gene_names,
                 target_gene_name,
-                shap_stats_df=None):
+                bootstrap_stats_df=None):
     """
     :param regressor_type: string. Case insensitive.
     :param regressor_kwargs: dict of key-value pairs that configures the regressor.
     :param trained_regressor: the trained model from which to extract the feature importances.
     :param tf_matrix_gene_names: the list of names corresponding to the columns of the tf_matrix used to train the model.
     :param target_gene_name: the name of the target gene.
-    :param shap_stats_df: optional DataFrame of bootstrap SHAP statistics, one row per TF, appended as columns.
+    :param bootstrap_stats_df: optional DataFrame of bootstrap statistics (MSE and SHAP), one row per TF, appended as
+                               columns.
     :return: a Pandas DataFrame['TF', 'target', 'importance'] representing inferred regulatory links and their
              connection strength.
     """
@@ -338,13 +375,13 @@ def to_links_df(regressor_type,
 
         links_df = pd.DataFrame({'TF': tf_matrix_gene_names, 'importance': feature_importances})
         links_df['target'] = target_gene_name
-        if shap_stats_df is not None:
-            links_df = pd.concat([links_df, shap_stats_df], axis=1)
+        if bootstrap_stats_df is not None:
+            links_df = pd.concat([links_df, bootstrap_stats_df], axis=1)
 
         clean_links_df = links_df[links_df.importance > 0].sort_values(by='importance', ascending=False)
 
-        shap_columns = [] if shap_stats_df is None else list(shap_stats_df.columns)
-        return clean_links_df[['TF', 'target', 'importance'] + shap_columns]
+        bootstrap_columns = [] if bootstrap_stats_df is None else list(bootstrap_stats_df.columns)
+        return clean_links_df[['TF', 'target', 'importance'] + bootstrap_columns]
 
     valid_types = {
     "LASSO", "SVR", "RIDGE", "ELASTIC", "OMP"
@@ -429,7 +466,8 @@ def infer_partial_network(regressor_type,
                           include_meta=False,
                           early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
                           seed=DEMON_SEED,
-                          bootstrap_tf_matrices=None):
+                          bootstrap_tf_matrices=None,
+                          bootstrap_target_expressions=None):
     """
     Ties together regressor model training with regulatory links and meta data extraction.
 
@@ -444,7 +482,11 @@ def infer_partial_network(regressor_type,
     :param early_stop_window_length: window length of the early stopping monitor.
     :param seed: (optional) random seed for the regressors.
     :param bootstrap_tf_matrices: (optional) list of bootstrapped predictor matrices. If given, bootstrap SHAP
-                                  statistics are added to the links DataFrame.
+                                  statistics are added to the links DataFrame (tree-based regressors only), and the
+                                  bootstrap MSE uses these predictors.
+    :param bootstrap_target_expressions: (optional) list of bootstrapped expression profiles of the target gene. If
+                                         given, the columns 'mse' and 'mse_bootstrap_median' are added to the links
+                                         DataFrame (one value per target, repeated on each of its links).
     :return: if include_meta == True, return links_df, meta_df
 
              link_df: a Pandas DataFrame['TF', 'target', 'importance'] containing inferred regulatory links and their
@@ -467,15 +509,24 @@ def infer_partial_network(regressor_type,
         except ValueError as e:
             raise ValueError("Regression for target gene {0} failed. Cause {1}.".format(target_gene_name, repr(e)))
 
-        shap_stats_df = None
+        clean_bootstrap_tf_matrices = None
         if bootstrap_tf_matrices is not None:
             clean_bootstrap_tf_matrices = [clean(m, tf_matrix_gene_names, target_gene_name)[0]
                                            for m in bootstrap_tf_matrices]
-            importances = to_feature_importances(regressor_type, regressor_kwargs, trained_regressor)
-            shap_stats_df = to_shap_stats(regressor_type, trained_regressor, clean_bootstrap_tf_matrices, importances)
+
+        bootstrap_stats_df = None
+        if bootstrap_target_expressions is not None:
+            mse_stats = to_mse_stats(trained_regressor, clean_tf_matrix, target_gene_expression,
+                                     bootstrap_target_expressions, clean_bootstrap_tf_matrices)
+            bootstrap_stats_df = pd.DataFrame(mse_stats, index=range(len(clean_tf_matrix_gene_names)))
+            if clean_bootstrap_tf_matrices is not None and is_tree_regressor(regressor_type):
+                importances = to_feature_importances(regressor_type, regressor_kwargs, trained_regressor)
+                shap_stats_df = to_shap_stats(regressor_type, trained_regressor, clean_bootstrap_tf_matrices,
+                                              importances)
+                bootstrap_stats_df = pd.concat([bootstrap_stats_df, shap_stats_df], axis=1)
 
         links_df = to_links_df(regressor_type, regressor_kwargs, trained_regressor, clean_tf_matrix_gene_names,
-                               target_gene_name, shap_stats_df)
+                               target_gene_name, bootstrap_stats_df)
 
         if include_meta:
             meta_df = to_meta_df(trained_regressor, target_gene_name)
@@ -484,7 +535,8 @@ def infer_partial_network(regressor_type,
         else:
             return links_df
 
-    grn_schema = _GRN_SCHEMA if bootstrap_tf_matrices is None else _GRN_SHAP_SCHEMA
+    grn_schema = to_grn_schema(with_mse=bootstrap_target_expressions is not None,
+                               with_shap=bootstrap_tf_matrices is not None and is_tree_regressor(regressor_type))
     fallback_result = (grn_schema, _META_SCHEMA) if include_meta else grn_schema
 
     return retry(fn,
@@ -527,9 +579,22 @@ def target_gene_indices(gene_names,
 
 
 _GRN_SCHEMA = make_meta({'TF': str, 'target': str, 'importance': float})
-_GRN_SHAP_SCHEMA = make_meta({'TF': str, 'target': str, 'importance': float, 'shap_mean': float,
-                              'shap_median': float, 'shap_std': float, 'max_rank_diff': float})
 _META_SCHEMA = make_meta({'target': str, 'n_estimators': int})
+
+MSE_COLUMNS = ['mse', 'mse_bootstrap_median']
+SHAP_COLUMNS = ['shap_mean', 'shap_median', 'shap_std', 'max_rank_diff']
+
+
+def to_grn_schema(with_mse=False, with_shap=False):
+    """
+    :param with_mse: whether the links DataFrame has the bootstrap MSE columns.
+    :param with_shap: whether the links DataFrame has the bootstrap SHAP columns.
+    :return: the Dask meta DataFrame of the links DataFrame.
+    """
+    if not with_mse:
+        return _GRN_SCHEMA
+    columns = MSE_COLUMNS + (SHAP_COLUMNS if with_shap else [])
+    return make_meta({'TF': str, 'target': str, 'importance': float, **{c: float for c in columns}})
 
 
 def create_graph(expression_matrix,
@@ -544,7 +609,8 @@ def create_graph(expression_matrix,
                  early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
                  repartition_multiplier=1,
                  seed=DEMON_SEED,
-                 bootstrap_matrices=None):
+                 bootstrap_matrices=None,
+                 bootstrap_predictors=True):
     """
     Main API function. Create a Dask computation graph.
 
@@ -564,7 +630,12 @@ def create_graph(expression_matrix,
     :param repartition_multiplier: multiplier
     :param seed: (optional) random seed for the regressors. Default 666.
     :param bootstrap_matrices: (optional) list of bootstrapped expression matrices with the same shape as
-                               expression_matrix. Only used for tree-based regressors, to compute SHAP statistics.
+                               expression_matrix. Adds the per-target MSE columns 'mse' and 'mse_bootstrap_median'
+                               and, for tree-based regressors, the SHAP statistics.
+    :param bootstrap_predictors: whether the predictor (TF) columns of the bootstrap matrices are bootstrapped too.
+                                 If False, they are ignored: the models predict the bootstrapped targets from the
+                                 original predictors and no SHAP statistics are computed, as they would be identical
+                                 for every bootstrap. Default True.
     :return: if include_meta is False, returns a Dask graph that computes the links DataFrame.
              If include_meta is True, returns a tuple: the links DataFrame and the meta DataFrame.
     """
@@ -578,16 +649,16 @@ def create_graph(expression_matrix,
     # [1] wrap in a list of 1 -> unsure why but Matt. Rocklin does this often...
     [future_tf_matrix_gene_names] = client.scatter([tf_matrix_gene_names], broadcast=True)
 
-    with_shap = bool(bootstrap_matrices) and \
-        (is_sklearn_regressor(regressor_type) or is_xgboost_regressor(regressor_type))
-    if bootstrap_matrices and not with_shap:
-        logger.warning('SHAP is only supported for tree-based regressors, ignoring bootstraps.')
+    with_bootstraps = bool(bootstrap_matrices)
+    with_shap = with_bootstraps and bootstrap_predictors and is_tree_regressor(regressor_type)
+    if with_bootstraps and bootstrap_predictors and not with_shap:
+        logger.warning('SHAP is only supported for tree-based regressors, only adding the MSE columns.')
 
     future_bootstrap_tf_matrices = None
-    if with_shap:
+    if with_bootstraps and bootstrap_predictors:
         bootstrap_tf_matrices = [to_tf_matrix(m, gene_names, tf_names)[0] for m in bootstrap_matrices]
         [future_bootstrap_tf_matrices] = client.scatter([bootstrap_tf_matrices], broadcast=True)
-    grn_schema = _GRN_SHAP_SCHEMA if with_shap else _GRN_SCHEMA
+    grn_schema = to_grn_schema(with_mse=with_bootstraps, with_shap=with_shap)
 
     delayed_link_dfs = []  # collection of delayed link DataFrames
     delayed_meta_dfs = []  # collection of delayed meta DataFrame
@@ -595,13 +666,16 @@ def create_graph(expression_matrix,
     for target_gene_index in target_gene_indices(gene_names, target_genes): #pointer
         target_gene_name = delayed(gene_names[target_gene_index], pure=True)
         target_gene_expression = delayed(expression_matrix[:, target_gene_index], pure=True)
+        bootstrap_target_expressions = None
+        if with_bootstraps:
+            bootstrap_target_expressions = delayed([m[:, target_gene_index] for m in bootstrap_matrices], pure=True)
 
         if include_meta:
             delayed_link_df, delayed_meta_df = delayed(infer_partial_network, pure=True, nout=2)(
                 regressor_type, regressor_kwargs,
                 future_tf_matrix, future_tf_matrix_gene_names,
                 target_gene_name, target_gene_expression, include_meta, early_stop_window_length, seed,
-                future_bootstrap_tf_matrices)
+                future_bootstrap_tf_matrices, bootstrap_target_expressions)
 
             if delayed_link_df is not None:
                 delayed_link_dfs.append(delayed_link_df)
@@ -611,7 +685,7 @@ def create_graph(expression_matrix,
                 regressor_type, regressor_kwargs,
                 future_tf_matrix, future_tf_matrix_gene_names,
                 target_gene_name, target_gene_expression, include_meta, early_stop_window_length, seed,
-                future_bootstrap_tf_matrices)
+                future_bootstrap_tf_matrices, bootstrap_target_expressions)
 
             if delayed_link_df is not None:
                 delayed_link_dfs.append(delayed_link_df)

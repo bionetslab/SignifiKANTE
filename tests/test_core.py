@@ -394,3 +394,29 @@ class AdditionalGRNInferences(TestCase):
         to_feature_importances("OMP",
                            OMP_KWARGS,
                            reg)
+
+
+class MseStatsTests(TestCase):
+
+    class Constant:
+        # Stand-in regressor predicting the first predictor column.
+        def predict(self, x):
+            return x[:, 0]
+
+    def test_without_bootstrapped_predictors(self):
+        x = np.array([[1.0], [2.0], [3.0]])
+        y = np.array([1.0, 2.0, 5.0])
+        bootstrap_ys = [np.array([1.0, 2.0, 3.0]), np.array([2.0, 3.0, 4.0]), np.array([4.0, 2.0, 3.0])]
+        stats = to_mse_stats(self.Constant(), x, y, bootstrap_ys)
+        self.assertAlmostEqual(stats['mse'], 4.0 / 3)
+        # per-bootstrap MSEs are 0, 1 and 3
+        self.assertAlmostEqual(stats['mse_bootstrap_median'], 1.0)
+
+    def test_with_bootstrapped_predictors(self):
+        x = np.array([[1.0], [2.0]])
+        y = np.array([1.0, 2.0])
+        bootstrap_xs = [np.array([[1.0], [1.0]]), np.array([[3.0], [2.0]])]
+        stats = to_mse_stats(self.Constant(), x, y, [y, y], bootstrap_xs)
+        self.assertAlmostEqual(stats['mse'], 0.0)
+        # per-bootstrap MSEs are 0.5 and 2
+        self.assertAlmostEqual(stats['mse_bootstrap_median'], 1.25)

@@ -268,13 +268,16 @@ class TestBootstrap(TestCase):
         return [df.iloc[rng.integers(0, len(df), size=len(df))].reset_index(drop=True)
                 for _ in range(n_bootstraps)]
 
+    MSE_COLUMNS = ['mse', 'mse_bootstrap_median']
     SHAP_COLUMNS = ['shap_mean', 'shap_median', 'shap_std', 'max_rank_diff']
 
-    def _check_bootstrap_column(self, grn):
-        for column in self.SHAP_COLUMNS:
+    def _check_bootstrap_column(self, grn, shap=True):
+        for column in self.MSE_COLUMNS + (self.SHAP_COLUMNS if shap else []):
             self.assertIn(column, grn.columns)
             self.assertTrue(pd.api.types.is_numeric_dtype(grn[column]))
             self.assertTrue((grn[column].dropna() >= 0).all())
+        # The MSE columns hold one value per target model.
+        self.assertTrue((grn.groupby('target')[self.MSE_COLUMNS].nunique() == 1).all().all())
 
     def test_grnboost2_bootstrap_output(self):
         bootstrap_data = self._make_bootstrap_data()
@@ -285,9 +288,39 @@ class TestBootstrap(TestCase):
                         client_or_address=client)
         self.assertTrue(isinstance(grn, pd.DataFrame))
         self.assertGreater(len(grn), 10)
-        self.assertEqual(len(grn.columns), 7)
+        self.assertEqual(len(grn.columns), 9)
         self.assertTrue(set(grn['TF']).issubset(set(tfs)))
         self._check_bootstrap_column(grn)
+
+    def test_grnboost2_bootstrap_targets_only(self):
+        # Without bootstrapped predictors there are no SHAP columns, and the TF columns of the bootstraps are
+        # ignored as predictors: for the targets that are not TFs, the bootstrap MSE equals the training MSE.
+        rng = np.random.default_rng(0)
+        bootstrap_data = [df.assign(**{tf: rng.normal(size=len(df)) for tf in tfs}) for _ in range(3)]
+        grn = grnboost2(df,
+                        tf_names=tfs,
+                        bootstraps=bootstrap_data,
+                        bootstrap_predictors=False,
+                        seed=42,
+                        client_or_address=client)
+        self.assertEqual(len(grn.columns), 5)
+        self._check_bootstrap_column(grn, shap=False)
+        for column in self.SHAP_COLUMNS:
+            self.assertNotIn(column, grn.columns)
+        non_tf_targets = grn[~grn['target'].isin(tfs)]
+        self.assertGreater(len(non_tf_targets), 0)
+        np.testing.assert_allclose(non_tf_targets['mse_bootstrap_median'], non_tf_targets['mse'])
+
+    def test_grnboost2_bootstrap_targets_only_resampled(self):
+        # Resampled targets change the bootstrap MSE, the training MSE stays the same.
+        bootstrap_data = self._make_bootstrap_data()
+        grn = grnboost2(df, tf_names=tfs, bootstraps=bootstrap_data, bootstrap_predictors=False, seed=42,
+                        client_or_address=client)
+        ref = grnboost2(df, tf_names=tfs, bootstraps=[df], bootstrap_predictors=False, seed=42,
+                        client_or_address=client)
+        merged = grn.merge(ref, on=['TF', 'target'], suffixes=('', '_ref'))
+        np.testing.assert_allclose(merged['mse'], merged['mse_ref'])
+        self.assertTrue((grn['mse_bootstrap_median'] != grn['mse']).any())
 
     def test_xgboost_bootstrap_output(self):
         bootstrap_data = self._make_bootstrap_data()
@@ -296,7 +329,7 @@ class TestBootstrap(TestCase):
                       bootstraps=bootstrap_data,
                       seed=42,
                       client_or_address=client)
-        self.assertEqual(len(grn.columns), 7)
+        self.assertEqual(len(grn.columns), 9)
         self._check_bootstrap_column(grn)
 
     def test_fdr_bootstrap_output(self):
@@ -310,10 +343,23 @@ class TestBootstrap(TestCase):
                                    client_or_address=client)
         self.assertTrue(isinstance(fdr_grn, pd.DataFrame))
         self.assertGreater(len(fdr_grn), 10)
-        self.assertEqual(len(fdr_grn.columns), 8)
+        self.assertEqual(len(fdr_grn.columns), 10)
         self.assertTrue(min(fdr_grn['pvalue']) >= (1.0/11))
         self.assertTrue(max(fdr_grn['pvalue']) <= 1.0)
         self._check_bootstrap_column(fdr_grn)
+
+    def test_fdr_bootstrap_targets_only(self):
+        bootstrap_data = self._make_bootstrap_data()
+        fdr_grn = signifikante_fdr(expression_data=df,
+                                   tf_names=tfs,
+                                   cluster_representative_mode="all_genes",
+                                   num_permutations=3,
+                                   bootstraps=bootstrap_data,
+                                   bootstrap_predictors=False,
+                                   seed=42,
+                                   client_or_address=client)
+        self.assertEqual(len(fdr_grn.columns), 6)
+        self._check_bootstrap_column(fdr_grn, shap=False)
 
     def test_fdr_bootstrap_empty_list(self):
         # An empty bootstrap list means no bootstrapping, i.e. no extra column.
@@ -325,6 +371,7 @@ class TestBootstrap(TestCase):
                                    seed=42,
                                    client_or_address=client)
         self.assertNotIn('shap_mean', fdr_grn.columns)
+        self.assertNotIn('mse', fdr_grn.columns)
         self.assertEqual(len(fdr_grn.columns), 4)
 
 class TestWasserstein(TestCase):

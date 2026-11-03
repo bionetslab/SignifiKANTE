@@ -6,7 +6,7 @@ from distributed import Client, LocalCluster
 # UPDATE FOR NEW GRN METHOD
 from signifikante.core import (
     create_graph, SGBM_KWARGS, RF_KWARGS, EARLY_STOP_WINDOW_LENGTH, ET_KWARGS, XGB_KWARGS, LASSO_KWARGS, 
-    SVR_KWARGS, RIDGE_KWARGS, ELASTIC_KWARGS, OMP_KWARGS
+    SVR_KWARGS, RIDGE_KWARGS, ELASTIC_KWARGS, OMP_KWARGS, MSE_COLUMNS, SHAP_COLUMNS
 )
 from signifikante.fdr import perform_fdr, run_heuristic
 from signifikante.fdr_utils import _prepare_client, _prepare_input
@@ -34,7 +34,8 @@ def signifikante_fdr(
         normalize_gene_expression : bool = False,
         apply_westfall_young : bool = False,
         return_cluster_ids : bool = False,
-        bootstraps : list = None
+        bootstraps : list = None,
+        bootstrap_predictors : bool = True
 ):
     """
         :param expression_data: Expression matrix with genes as columns and samples as rows.
@@ -62,7 +63,10 @@ def signifikante_fdr(
         :param apply_westfall_young: Whether or not to additionally return Westfall-Young adjusted P-values.
         :param return_cluster_ids: Whether or not to return cluster IDs for each target gene.
         :param bootstraps: Optional list of bootstrapped expression matrices (same shape as expression_data). If given and input_grn is None,
-            the columns 'shap_mean', 'shap_median', 'shap_std', 'max_rank_diff' are added to the output.
+            the per-target columns 'mse', 'mse_bootstrap_median' and the SHAP columns 'shap_mean', 'shap_median', 'shap_std', 'max_rank_diff'
+            are added to the output.
+        :param bootstrap_predictors: Whether the TF columns of the bootstraps are bootstrapped too. If False, only the targets are taken from
+            the bootstraps, and the SHAP columns are not computed. Defaults to True.
         :return: Pandas DataFrame with columns 'TF', 'target', 'importance', 'pvalue' representing P-values on each gene regulatory link.
     """
     if cluster_representative_mode not in {'medoid', 'random', 'all_genes'}:
@@ -92,9 +96,11 @@ def signifikante_fdr(
 
     # If desired, apply z-score normalization on input gene expression matrix.
     if normalize_gene_expression:
-        expression_data = (expression_data - expression_data.mean()) / expression_data.std(ddof=0)
+        # The bootstraps get the scaling of the original data, so that the bootstrap MSE is on the same scale.
+        mean, std = expression_data.mean(), expression_data.std(ddof=0)
+        expression_data = (expression_data - mean) / std
         if bootstraps:
-            bootstraps = [(b - b.mean()) / b.std(ddof=0) for b in bootstraps]
+            bootstraps = [(b - mean) / std for b in bootstraps]
 
     # If input GRN has not been given, run one GRN inference call upfront.
     if input_grn is None:
@@ -103,7 +109,8 @@ def signifikante_fdr(
             tf_names=tf_names,
             client_or_address=client_or_address,
             seed=seed,
-            bootstraps=bootstraps
+            bootstraps=bootstraps,
+            bootstrap_predictors=bootstrap_predictors
         )
 
     # Align the input GRN and expression data w.r.t. the genes
@@ -181,10 +188,10 @@ def signifikante_fdr(
         return_cluster_ids
     )
 
-    # Merge bootstrap SHAP statistics of the input GRN, skipped if they are not available.
-    shap_columns = [c for c in ['shap_mean', 'shap_median', 'shap_std', 'max_rank_diff'] if c in input_grn.columns]
-    if shap_columns:
-        fdr_grn = fdr_grn.merge(input_grn[['TF', 'target'] + shap_columns], on=['TF', 'target'], how='left')
+    # Merge bootstrap MSE and SHAP statistics of the input GRN, skipped if they are not available.
+    bootstrap_columns = [c for c in MSE_COLUMNS + SHAP_COLUMNS if c in input_grn.columns]
+    if bootstrap_columns:
+        fdr_grn = fdr_grn.merge(input_grn[['TF', 'target'] + bootstrap_columns], on=['TF', 'target'], how='left')
     return fdr_grn
 
 
@@ -197,7 +204,8 @@ def grnboost2(expression_data,
               limit=None,
               seed=None,
               verbose=False,
-              bootstraps=None):
+              bootstraps=None,
+              bootstrap_predictors=True):
     """
     Run GRNBoost2 GRN inference method.
 
@@ -213,14 +221,16 @@ def grnboost2(expression_data,
     :param seed: Optional random seed for the regression models. Defaults to None.
     :param verbose: Whether or not to print detailed additional information. Defaults to False.
     :param bootstraps: Optional list of bootstrapped expression matrices with the same shape as expression_data.
-            If given, bootstrap SHAP statistics are added. Defaults to None.
+            If given, the per-target bootstrap MSE columns and the bootstrap SHAP statistics are added. Defaults to None.
+    :param bootstrap_predictors: Whether the TF columns of the bootstraps are bootstrapped too. If False, only the
+            targets are taken from the bootstraps and no SHAP statistics are computed. Defaults to True.
     :return: a pandas DataFrame['TF', 'target', 'importance'] representing the inferred gene regulatory links.
     """
 
     return diy(expression_data=expression_data, regressor_type='GBM', regressor_kwargs=SGBM_KWARGS,
                gene_names=gene_names, tf_names=tf_names, target_names = target_names, client_or_address=client_or_address,
                early_stop_window_length=early_stop_window_length, limit=limit, seed=seed, verbose=verbose,
-               bootstraps=bootstraps)
+               bootstraps=bootstraps, bootstrap_predictors=bootstrap_predictors)
 
 
 def genie3(expression_data,
@@ -287,7 +297,8 @@ def xgboost(expression_data,
            limit=None,
            seed=None,
            verbose=False,
-           bootstraps=None):
+           bootstraps=None,
+           bootstrap_predictors=True):
     """
     Run xgboost GRN inference method.
 
@@ -303,13 +314,15 @@ def xgboost(expression_data,
     :param seed: Optional random seed for the regression models. Defaults to None.
     :param verbose: Whether or not to print detailed additional information. Defaults to False.
     :param bootstraps: Optional list of bootstrapped expression matrices with the same shape as expression_data.
-            If given, bootstrap SHAP statistics are added. Defaults to None.
+            If given, the per-target bootstrap MSE columns and the bootstrap SHAP statistics are added. Defaults to None.
+    :param bootstrap_predictors: Whether the TF columns of the bootstraps are bootstrapped too. If False, only the
+            targets are taken from the bootstraps and no SHAP statistics are computed. Defaults to True.
     :return: a pandas DataFrame['TF', 'target', 'importance'] representing the inferred gene regulatory links.
     """
 
     return diy(expression_data=expression_data, regressor_type='XGB', regressor_kwargs=XGB_KWARGS,
                gene_names=gene_names, tf_names=tf_names, client_or_address=client_or_address,
-               limit=limit, seed=seed, verbose=verbose, bootstraps=bootstraps)
+               limit=limit, seed=seed, verbose=verbose, bootstraps=bootstraps, bootstrap_predictors=bootstrap_predictors)
 
 def lasso(expression_data,
            gene_names=None,
@@ -462,7 +475,8 @@ def diy(expression_data,
         limit=None,
         seed=None,
         verbose=False,
-        bootstraps=None):
+        bootstraps=None,
+        bootstrap_predictors=True):
     """
     :param expression_data: one of:
            * a pandas DataFrame (rows=observations, columns=genes)
@@ -482,7 +496,10 @@ def diy(expression_data,
     :param seed: optional random seed for the regressors. Default 666. Use None for random seed.
     :param verbose: print info.
     :param bootstraps: optional list of bootstrapped expression matrices with the same shape as expression_data.
-                       If given, bootstrap SHAP statistics are added for tree-based regressors.
+                       If given, the per-target bootstrap MSE columns are added, and the bootstrap SHAP statistics
+                       for tree-based regressors.
+    :param bootstrap_predictors: whether the TF columns of the bootstraps are bootstrapped too. If False, only the
+                                 targets are taken from the bootstraps and no SHAP statistics are computed.
     :return: a pandas DataFrame['TF', 'target', 'importance'] representing the inferred gene regulatory links.
     """
     if verbose:
@@ -515,7 +532,8 @@ def diy(expression_data,
                              early_stop_window_length=early_stop_window_length,
                              limit=limit,
                              seed=seed,
-                             bootstrap_matrices=bootstrap_matrices)
+                             bootstrap_matrices=bootstrap_matrices,
+                             bootstrap_predictors=bootstrap_predictors)
 
         if verbose:
             print('{} partitions'.format(graph.npartitions))
