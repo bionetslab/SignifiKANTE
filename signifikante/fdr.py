@@ -1,19 +1,18 @@
 
-import copy
 from signifikante.core import (
     EARLY_STOP_WINDOW_LENGTH, DEMON_SEED, to_tf_matrix, target_gene_indices, clean, fit_model, 
     to_links_df
 )
 from signifikante.fdr_utils import (
     compute_correlation_distance_matrix, compute_wasserstein_distance_matrix, cluster_genes_to_dict, 
-    partition_input_grn, invert_tf_to_cluster_dict, count_helper, 
+    partition_input_grn, invert_tf_to_cluster_dict, new_permutation_null, record_permutation, count_edges,
     subset_tf_matrix, _prepare_client, _prepare_input
 )
 import numpy as np
 import pandas as pd
 from dask import delayed, compute
-from dask.dataframe import from_delayed
-from dask.dataframe.utils import make_meta
+from dask.dataframe.utils import make_meta, pyarrow_strings_enabled
+from dask.dataframe._pyarrow import to_pyarrow_string
 import pickle
 import os
 from statsmodels.stats.multitest import multipletests
@@ -239,7 +238,7 @@ def diy_fdr(expression_data,
                     per_target_importance_sums[target] = 0.0
                 per_target_importance_sums[target] += import_dict['importance']
 
-        graph = create_graph_fdr(expression_matrix,
+        delayed_nulls, edge_subsets, tf_to_cluster = create_graph_fdr(expression_matrix,
                                  gene_names=gene_names,
                                  are_tfs_clustered=are_tfs_clustered,
                                  tf_representatives=tf_representatives,
@@ -261,12 +260,20 @@ def diy_fdr(expression_data,
                                  )
 
         if verbose:
-            print('{} partitions'.format(graph.npartitions))
+            print('{} permutation tasks'.format(len(delayed_nulls)))
             print('computing dask graph')
 
-        return client \
-            .compute(graph, sync=True) \
-            .sort_values(by='importance', ascending=False)
+        nulls = client.compute(delayed_nulls, sync=True)
+        links_df = pd.concat([
+            count_edges(null, partial_input_grn, tf_to_cluster, scale_for_tf_sampling, apply_westfall_young,
+                        cluster_id, feather_file)
+            for null, (partial_input_grn, cluster_id, feather_file) in zip(nulls, edge_subsets)
+        ])
+        # same string dtypes as the Dask DataFrame the links were collected in before
+        if pyarrow_strings_enabled():
+            links_df = to_pyarrow_string(links_df)
+
+        return links_df.sort_values(by='importance', ascending=False)
 
     finally:
         shutdown_callback(verbose)
@@ -315,11 +322,12 @@ def create_graph_fdr(expression_matrix: np.ndarray,
     :param client: a dask.distributed client instance.
                    * Used to scatter-broadcast the tf matrix to the workers instead of simply wrapping in a delayed().
     :param early_stop_window_length: window length of the early stopping monitor.
-    :param repartition_multiplier: multiplier
+    :param repartition_multiplier: not used anymore (the links are no longer collected in a Dask DataFrame).
     :param n_permutations: int. Number of random permutations to run for FDR control.
     :param seed: (optional) random seed for the regressors. Default 666.
-    :return: if include_meta is False, returns a Dask graph that computes the links DataFrame.
-             If include_meta is True, returns a tuple: the links DataFrame and the meta DataFrame.
+    :return: a tuple: the list of delayed permutation nulls (one per permutation task, see permutation_null_medoid
+             and permutation_null_sampled), per task the tuple (edges of the input GRN to count against its null,
+             cluster ID column value, feather file or None) for count_edges, and the TF clustering.
     """
     assert client, "Client not given, but is required in create_graph_fdr!"
     # Extract FDR mode information from TF and non-TF representative lists.
@@ -371,7 +379,11 @@ def create_graph_fdr(expression_matrix: np.ndarray,
     else:
         future_cluster_to_tfs = None
 
-    delayed_link_dfs = []  # collection of delayed link DataFrames
+    # The permutation tasks only get their targets and return the null distribution of the TF importances
+    # (permutation_null_*); the edges are counted against it afterwards (count_edges, in diy_fdr), so the input GRN
+    # does not go into the graph.
+    delayed_nulls = []  # collection of delayed permutation nulls
+    edge_subsets = []  # per permutation task: (edges to count against its null, cluster ID column, feather file)
 
     # Use pre-computed medoid representatives for TFs and/or non-TFs.
     if fdr_mode == 'medoid':
@@ -382,10 +394,10 @@ def create_graph_fdr(expression_matrix: np.ndarray,
         for target_gene_index in target_gene_indices(gene_names, all_targets):
             target_gene_name = gene_names[target_gene_index]
             target_gene_expression = delayed(expression_matrix[:, target_gene_index])
-            target_subset_grn = delayed(grn_subsets_per_target[target_to_cluster[target_gene_name]])
+            target_importance_sums = {target_gene_name: per_target_importance_sums[target_gene_name]} \
+                if target_gene_name in per_target_importance_sums else {}
 
-            # Pass subset of GRN which is represented by the medoids.
-            delayed_link_df = delayed(count_computation_medoid_representative, pure=True)(
+            delayed_nulls.append(delayed(permutation_null_medoid, pure=True)(
                 regressor_type,
                 regressor_kwargs,
                 future_tf_matrix,
@@ -393,21 +405,19 @@ def create_graph_fdr(expression_matrix: np.ndarray,
                 future_tf_matrix_gene_names,
                 target_gene_name,
                 target_gene_expression,
-                target_subset_grn,
-                per_target_importance_sums,
+                target_importance_sums,
                 future_tf_to_cluster,
                 future_cluster_to_tfs,
                 n_permutations,
                 early_stop_window_length,
-                seed,
-                output_dir,
-                scale_for_tf_sampling,
-                apply_westfall_young,
-                target_gene_index
-            )
-
-            if delayed_link_df is not None:
-                delayed_link_dfs.append(delayed_link_df)
+                seed
+            ))
+            # Subset of GRN which is represented by the medoid.
+            edge_subsets.append((
+                grn_subsets_per_target[target_to_cluster[target_gene_name]],
+                target_gene_index,
+                None if output_dir is None else os.path.join(output_dir, f'target_{target_gene_name}.feather')
+            ))
 
     # Loop over all genes of cluster, i.e. simulate random drawing of genes from clusters.
     elif fdr_mode == 'random':
@@ -418,12 +428,10 @@ def create_graph_fdr(expression_matrix: np.ndarray,
             # gene column order in expression matrix.
             target_cluster_gene_names = [gene for index, gene in enumerate(gene_names) if index in target_cluster_idxs]
             cluster_expression = delayed(expression_matrix)
+            target_importance_sums = {gene: per_target_importance_sums[gene] for gene in target_cluster_gene_names
+                                      if gene in per_target_importance_sums}
 
-            # Dask does not allow iterating over delayed dictionary, so no delayed() at this point.
-            target_subset_grn = grn_subsets_per_target[cluster_id]
-
-            delayed_link_df = delayed(count_computation_sampled_representative, pure=True)(
-                cluster_id,
+            delayed_nulls.append(delayed(permutation_null_sampled, pure=True)(
                 regressor_type,
                 regressor_kwargs,
                 future_tf_matrix,
@@ -432,33 +440,23 @@ def create_graph_fdr(expression_matrix: np.ndarray,
                 target_cluster_gene_names,
                 target_cluster_idxs,
                 cluster_expression,
-                target_subset_grn,
                 tf_to_cluster,
-                per_target_importance_sums,
+                target_importance_sums,
                 n_permutations,
                 early_stop_window_length,
-                seed,
-                output_dir,
-                scale_for_tf_sampling,
-                apply_westfall_young
-            )
-
-
-            if delayed_link_dfs is not None:
-                delayed_link_dfs.append(delayed_link_df)
+                seed
+            ))
+            edge_subsets.append((
+                grn_subsets_per_target[cluster_id],
+                cluster_id,
+                None if output_dir is None else os.path.join(output_dir, f'cluster_{cluster_id}.feather')
+            ))
     else:
         raise ValueError(f'Unknown FDR mode: {fdr_mode}.')
 
-    # Gather the DataFrames into one distributed DataFrame.
-    all_links_df = from_delayed(delayed_link_dfs, meta=FDR_GRN_SCHEMA)
+    return delayed_nulls, edge_subsets, tf_to_cluster
 
-    # [2] repartition to nr of workers -> important to avoid GC problems!
-    # see: http://dask.pydata.org/en/latest/dataframe-performance.html#repartition-to-reduce-overhead
-    n_parts = len(client.ncores()) * repartition_multiplier
-
-    return all_links_df.repartition(npartitions=n_parts)
-
-def count_computation_medoid_representative(
+def permutation_null_medoid(
         regressor_type,
         regressor_kwargs,
         tf_matrix,
@@ -466,20 +464,18 @@ def count_computation_medoid_representative(
         tf_matrix_gene_names: list[str],
         target_gene_name: str,
         target_gene_expression: np.ndarray,
-        partial_input_grn: dict,  # {(TF, target): {'importance': float}}
-        per_target_importance_sums,
+        target_importance_sums: dict,
         tf_to_cluster: dict[str, int],
         cluster_to_tf : dict,
         n_permutations: int,
         early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
-        seed=DEMON_SEED,
-        output_dir=None,
-        scale_for_tf_sampling=False,
-        apply_westfall_young=False,
-        target_gene_index=-1
+        seed=DEMON_SEED
 ):
-
-    partial_input_grn = copy.deepcopy(partial_input_grn)
+    """
+    Fits n_permutations models on the permuted expression of one (medoid) target and returns the importance of each
+    TF cluster in each of them, the null distribution to count the edges of the target's cluster against (see
+    count_edges). target_importance_sums: {target: importance sum of its input GRN edges}, needed if TFs are clustered.
+    """
 
     # Remove target from TF-list and TF-expression matrix if target itself is a TF
     if not are_tfs_clustered:
@@ -492,12 +488,7 @@ def count_computation_medoid_representative(
     if clean_tf_matrix.size == 0:
         raise ValueError("Cleaned TF matrix is empty, skipping inference of target {}.".format(target_gene_name))
 
-    # Initialize counts
-    for _, val in partial_input_grn.items():
-        val.update({'count': 0.0})
-        val.update({'shuffled_occurences': 0})
-        val.update({'westfall_young' : 0})
-        val.update({'cluster_id': target_gene_index})
+    null = new_permutation_null(tf_to_cluster, n_permutations)
 
     # Iterate for num permutations
     for i in range(n_permutations):
@@ -535,26 +526,50 @@ def count_computation_medoid_representative(
             for tf, _, importance in zip(shuffled_grn_df['TF'], shuffled_grn_df['target'], shuffled_grn_df['importance']):
                 tf_cluster_size = len(cluster_to_tf[tf_to_cluster[tf]])
                 shuffled_target_sum += importance * tf_cluster_size
-            scaling_factor = per_target_importance_sums[target_gene_name] / shuffled_target_sum
+            scaling_factor = target_importance_sums[target_gene_name] / shuffled_target_sum
             shuffled_grn_df['importance'] = shuffled_grn_df['importance'] * scaling_factor
 
-        # Update the count values of the partial input GRN
-        count_helper(shuffled_grn_df, partial_input_grn, tf_to_cluster, scale_for_tf_sampling, apply_westfall_young)
+        record_permutation(null, i, shuffled_grn_df, tf_to_cluster)
 
-    # Change partial input GRN format from dict to df
-    partial_input_grn_fdr_df = pd.DataFrame(
-        [(TF, target, v['importance'], v['count'], v['shuffled_occurences'], v['westfall_young'], v['cluster_id']) for (TF, target), v in partial_input_grn.items()],
-        columns=['TF', 'target', 'importance', 'count', 'shuffled_occurences', 'westfall_young', 'cluster_id']
-    )
-
-    if not output_dir is None:
-        partial_input_grn_fdr_df.to_feather(os.path.join(output_dir, f'target_{target_gene_name}.feather'))
-
-    return partial_input_grn_fdr_df
+    return null
 
 
-def count_computation_sampled_representative(
-        cluster_id,
+def count_computation_medoid_representative(
+        regressor_type,
+        regressor_kwargs,
+        tf_matrix,
+        are_tfs_clustered,
+        tf_matrix_gene_names: list[str],
+        target_gene_name: str,
+        target_gene_expression: np.ndarray,
+        partial_input_grn: dict,  # {(TF, target): {'importance': float}}
+        per_target_importance_sums,
+        tf_to_cluster: dict[str, int],
+        cluster_to_tf : dict,
+        n_permutations: int,
+        early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
+        seed=DEMON_SEED,
+        output_dir=None,
+        scale_for_tf_sampling=False,
+        apply_westfall_young=False,
+        target_gene_index=-1
+):
+    """
+    Permutation counts of the edges of partial_input_grn against the permutations of one (medoid) target, see
+    permutation_null_medoid and count_edges.
+    """
+    target_importance_sums = {target_gene_name: per_target_importance_sums[target_gene_name]} \
+        if target_gene_name in per_target_importance_sums else {}
+    null = permutation_null_medoid(regressor_type, regressor_kwargs, tf_matrix, are_tfs_clustered,
+                                   tf_matrix_gene_names, target_gene_name, target_gene_expression,
+                                   target_importance_sums, tf_to_cluster, cluster_to_tf, n_permutations,
+                                   early_stop_window_length, seed)
+    feather_file = None if output_dir is None else os.path.join(output_dir, f'target_{target_gene_name}.feather')
+    return count_edges(null, partial_input_grn, tf_to_cluster, scale_for_tf_sampling, apply_westfall_young,
+                       target_gene_index, feather_file)
+
+
+def permutation_null_sampled(
         regressor_type,
         regressor_kwargs,
         tf_matrix,
@@ -563,26 +578,20 @@ def count_computation_sampled_representative(
         target_gene_names,
         target_gene_idxs,
         target_gene_expressions,
-        partial_input_grn: dict,
         tf_to_cluster: dict[str, int],
-        per_target_importance_sums : dict,
+        target_importance_sums : dict,
         n_permutations : int,
         early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
-        seed=DEMON_SEED,
-        output_dir=None,
-        scale_for_tf_sampling=False,
-        apply_westfall_young=False
+        seed=DEMON_SEED
 ):
-
-    partial_input_grn = copy.deepcopy(partial_input_grn)
+    """
+    Fits n_permutations models on permuted targets drawn in turn from a target cluster and returns the importance of
+    each TF cluster in each of them, the null distribution to count the cluster's edges against (see count_edges).
+    target_importance_sums: {target: importance sum of its input GRN edges}, needed if TFs are clustered.
+    """
 
     are_tfs_clustered = (not cluster_to_tfs is None)
-    # Initialize counts on input GRN edges.
-    for _, val in partial_input_grn.items():
-        val.update({'count': 0.0})
-        val.update({'shuffled_occurences': 0})
-        val.update({'westfall_young' : 0})
-        val.update({"cluster_id" : cluster_id})
+    null = new_permutation_null(tf_to_cluster, n_permutations)
 
     for perm in range(n_permutations):
         # Retrieve "random" target gene from cluster.
@@ -647,22 +656,46 @@ def count_computation_sampled_representative(
             for tf, _, importance in zip(shuffled_grn_df['TF'], shuffled_grn_df['target'], shuffled_grn_df['importance']):
                 tf_cluster_size = len(cluster_to_tfs[tf_to_cluster[tf]])
                 shuffled_target_sum += importance * tf_cluster_size
-            scaling_factor = per_target_importance_sums[target_gene_name] / shuffled_target_sum
+            scaling_factor = target_importance_sums[target_gene_name] / shuffled_target_sum
             shuffled_grn_df['importance'] = shuffled_grn_df['importance'] * scaling_factor
 
-        # Update the count values of the partial input GRN.
-        count_helper(shuffled_grn_df, partial_input_grn, tf_to_cluster, scale_for_tf_sampling, apply_westfall_young)
+        record_permutation(null, perm, shuffled_grn_df, tf_to_cluster)
 
-    # Change partial input GRN format from dict to df
-    partial_input_grn_fdr_df = pd.DataFrame(
-        [(TF, target, v['importance'], v['count'], v['shuffled_occurences'], v['westfall_young'], v["cluster_id"]) for (TF, target), v in partial_input_grn.items()],
-        columns=['TF', 'target', 'importance', 'count', 'shuffled_occurences', 'westfall_young', "cluster_id"]
-    )
+    return null
 
-    if not output_dir is None:
-        partial_input_grn_fdr_df.to_feather(os.path.join(output_dir, f'cluster_{cluster_id}.feather'))
 
-    return partial_input_grn_fdr_df
+def count_computation_sampled_representative(
+        cluster_id,
+        regressor_type,
+        regressor_kwargs,
+        tf_matrix,
+        tf_matrix_gene_names,
+        cluster_to_tfs,
+        target_gene_names,
+        target_gene_idxs,
+        target_gene_expressions,
+        partial_input_grn: dict,
+        tf_to_cluster: dict[str, int],
+        per_target_importance_sums : dict,
+        n_permutations : int,
+        early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
+        seed=DEMON_SEED,
+        output_dir=None,
+        scale_for_tf_sampling=False,
+        apply_westfall_young=False
+):
+    """
+    Permutation counts of the edges of partial_input_grn against the permutations of the targets of one target
+    cluster, see permutation_null_sampled and count_edges.
+    """
+    target_importance_sums = {gene: per_target_importance_sums[gene] for gene in target_gene_names
+                              if gene in per_target_importance_sums}
+    null = permutation_null_sampled(regressor_type, regressor_kwargs, tf_matrix, tf_matrix_gene_names, cluster_to_tfs,
+                                    target_gene_names, target_gene_idxs, target_gene_expressions, tf_to_cluster,
+                                    target_importance_sums, n_permutations, early_stop_window_length, seed)
+    feather_file = None if output_dir is None else os.path.join(output_dir, f'cluster_{cluster_id}.feather')
+    return count_edges(null, partial_input_grn, tf_to_cluster, scale_for_tf_sampling, apply_westfall_young,
+                       cluster_id, feather_file)
 
 @delayed
 def save_df(df, filename):

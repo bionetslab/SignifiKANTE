@@ -260,42 +260,102 @@ def subset_tf_matrix(tf_matrix : np.ndarray,
     tf_subset_names = [tf for tf in tf_gene_names if tf in tf_subset_names]
     return tf_subset_matrix, tf_subset_names
 
-def count_helper(
+def new_permutation_null(tf_to_cluster: dict[str, int], n_permutations: int) -> dict:
+    """
+    Empty null distribution of the TF importances for n_permutations permutations, filled by record_permutation.
+    Returns: Dict with 'clusters' (TF cluster IDs, the column order), 'importance' (permutations x clusters),
+        'present' (whether the cluster has a TF with nonzero importance in the permutation) and 'max_importance'
+        (per permutation).
+    """
+    clusters = list(dict.fromkeys(tf_to_cluster.values()))
+    return {
+        'clusters': clusters,
+        'importance': np.zeros((n_permutations, len(clusters))),
+        'present': np.zeros((n_permutations, len(clusters)), dtype=bool),
+        'max_importance': np.full(n_permutations, np.nan),
+    }
+
+def record_permutation(
+        null: dict,
+        permutation: int,
         shuffled_grn: pd.DataFrame,
+        tf_to_cluster: dict[str, int]
+) -> None:
+    """
+    Stores the TF importances of one permutation's shuffled GRN in null (see new_permutation_null), in place.
+    """
+    # Note that each TF-cluster-ID still only occurs exactly once, since either
+    # TFs have not been clustered (i.e. each TF has one dummy cluster) or if TFs have been clustered, then
+    # each TF cluster has exactly one representative and hence can only appear once in shuffled output GRN.
+    if 'positions' not in null:
+        null['positions'] = {cluster: i for i, cluster in enumerate(null['clusters'])}
+    positions = null['positions']
+    for tf, imp in zip(shuffled_grn['TF'], shuffled_grn['importance']):
+        position = positions[tf_to_cluster[tf]]
+        null['importance'][permutation, position] = imp
+        null['present'][permutation, position] = True
+    null['max_importance'][permutation] = shuffled_grn['importance'].max()
+
+def count_edges(
+        null: dict,
         partial_input_grn: dict[str, dict[str, float]],
         tf_to_cluster: dict[str, int],
         scale_for_tf_sampling : bool,
-        apply_westfall_young : bool
-) -> None:
+        apply_westfall_young : bool,
+        cluster_id,
+        feather_file=None
+) -> pd.DataFrame:
     """
-    Computes empirical counts for all edges in input GRN based on given decoy edges.
+    Computes empirical counts for all edges in input GRN based on the decoy importances of the permutations.
     Args:
-        shuffled_grn: Decoy edges based on shuffled expression matrix.
-        partial_input_grn: "Groundtruth" edges from input GRN.
-        gene_to_clust: Clustering of genes, with gene names as keys and cluster IDs as values.
+        null: Importances of the TF clusters in the shuffled GRNs, see new_permutation_null.
+        partial_input_grn: "Groundtruth" edges from input GRN, {(TF, target): {'importance': float}}.
+        tf_to_cluster: Clustering of TFs, with TF names as keys and cluster IDs as values.
+        cluster_id: Value of the 'cluster_id' column.
+        feather_file: Optional file to write the DataFrame to.
 
-    Returns: None. Partial_input_GRN is updated in-place.
+    Returns: DataFrame with the edges in the order of partial_input_grn and the columns 'TF', 'target', 'importance',
+        'count' (permutations in which the TF's cluster has an importance >= the edge's), 'shuffled_occurences'
+        (permutations in which the TF's cluster occurs, if scale_for_tf_sampling, else 0), 'westfall_young'
+        (permutations in which the TF's cluster occurs and the maximal importance is >= the edge's, if
+        apply_westfall_young, else 0) and 'cluster_id'.
     """
+    tfs = [tf for tf, _ in partial_input_grn]
+    n_edges = len(tfs)
+    importance = np.fromiter((v['importance'] for v in partial_input_grn.values()), dtype=float, count=n_edges)
+    positions = {cluster: i for i, cluster in enumerate(null['clusters'])}
+    edge_position = np.fromiter((positions[tf_to_cluster[tf]] for tf in tfs), dtype=np.int64, count=n_edges)
 
-    # {id of cluster of TF: importance}
-    # Note that each TF-cluster-ID (i.e. key in the following dict) still only occurs exactly once, since either
-    # TFs have not been clustered (i.e. each TF has one dummy cluster) or if TFs have been clustered, then
-    # each TF cluster has exactly one representative and hence can only appear once in shuffled output GRN.
-    shuffled_grn_tf_cluster_to_importance = {
-        tf_to_cluster[tf]: imp for tf, imp in zip(shuffled_grn['TF'], shuffled_grn['importance'])
-    }
+    count = np.zeros(n_edges)
+    shuffled_occurences = np.zeros(n_edges, dtype=np.int64)
+    westfall_young = np.zeros(n_edges, dtype=np.int64)
+    # Per TF cluster: number of permutations with a decoy importance >= the edge's importance
+    order = np.argsort(edge_position, kind='stable')
+    sorted_positions = edge_position[order]
+    starts = np.flatnonzero(np.r_[True, sorted_positions[1:] != sorted_positions[:-1]]) if n_edges else []
+    for start, stop in zip(starts, list(starts[1:]) + [n_edges]):
+        edges = order[start:stop]
+        present = null['present'][:, sorted_positions[start]]
+        decoys = np.sort(null['importance'][present, sorted_positions[start]])
+        count[edges] = len(decoys) - np.searchsorted(decoys, importance[edges], side='left')
+        if scale_for_tf_sampling:
+            shuffled_occurences[edges] = present.sum()
+        if apply_westfall_young:
+            maxima = np.sort(null['max_importance'][present])
+            westfall_young[edges] = len(maxima) - np.searchsorted(maxima, importance[edges], side='left')
 
-    max_importance = shuffled_grn['importance'].max()
-    for (tf, _), val in partial_input_grn.items():
-        if tf_to_cluster[tf] in shuffled_grn_tf_cluster_to_importance:
-            importance_input = val['importance']
-            importance_shuffled = shuffled_grn_tf_cluster_to_importance[tf_to_cluster[tf]]
-            if scale_for_tf_sampling:
-                val['shuffled_occurences'] += 1
-            if importance_shuffled >= importance_input:
-                val['count'] += 1
-            if apply_westfall_young and max_importance >= importance_input:
-                val['westfall_young'] += 1
+    df = pd.DataFrame({
+        'TF': tfs,
+        'target': [target for _, target in partial_input_grn],
+        'importance': importance,
+        'count': count,
+        'shuffled_occurences': shuffled_occurences,
+        'westfall_young': westfall_young,
+        'cluster_id': cluster_id,
+    })
+    if feather_file is not None:
+        df.to_feather(feather_file)
+    return df
 
 def _prepare_client(client_or_address):
     """
