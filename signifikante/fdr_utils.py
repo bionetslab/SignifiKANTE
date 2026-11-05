@@ -260,38 +260,9 @@ def subset_tf_matrix(tf_matrix : np.ndarray,
     tf_subset_names = [tf for tf in tf_gene_names if tf in tf_subset_names]
     return tf_subset_matrix, tf_subset_names
 
-def init_edge_counts(
-        partial_input_grn: dict[str, dict[str, float]],
-        tf_to_cluster: dict[str, int]
-) -> dict:
-    """
-    Array form of the edges of a partial input GRN for count_helper, in the order of the dict.
-    Args:
-        partial_input_grn: "Groundtruth" edges from input GRN, {(TF, target): {'importance': float}}. Not modified.
-        tf_to_cluster: Clustering of TFs, with TF names as keys and cluster IDs as values.
-
-    Returns: Dict with 'TF' and 'target' (lists), 'importance' (array), 'clusters' ({cluster ID: position}),
-        'tf_cluster' (position of the cluster of each edge's TF) and the zero counters 'count' (float array),
-        'shuffled_occurences' and 'westfall_young' (int arrays).
-    """
-    tfs = [tf for tf, _ in partial_input_grn]
-    clusters = {}
-    tf_position = {tf: clusters.setdefault(tf_to_cluster[tf], len(clusters)) for tf in dict.fromkeys(tfs)}
-    n_edges = len(tfs)
-    return {
-        'TF': tfs,
-        'target': [target for _, target in partial_input_grn],
-        'importance': np.fromiter((v['importance'] for v in partial_input_grn.values()), dtype=float, count=n_edges),
-        'clusters': clusters,
-        'tf_cluster': np.fromiter((tf_position[tf] for tf in tfs), dtype=np.int64, count=n_edges),
-        'count': np.zeros(n_edges),
-        'shuffled_occurences': np.zeros(n_edges, dtype=np.int64),
-        'westfall_young': np.zeros(n_edges, dtype=np.int64),
-    }
-
 def count_helper(
         shuffled_grn: pd.DataFrame,
-        edge_counts: dict,
+        partial_input_grn: dict[str, dict[str, float]],
         tf_to_cluster: dict[str, int],
         scale_for_tf_sampling : bool,
         apply_westfall_young : bool
@@ -300,47 +271,31 @@ def count_helper(
     Computes empirical counts for all edges in input GRN based on given decoy edges.
     Args:
         shuffled_grn: Decoy edges based on shuffled expression matrix.
-        edge_counts: "Groundtruth" edges from input GRN and their counters, see init_edge_counts.
-        tf_to_cluster: Clustering of TFs, with TF names as keys and cluster IDs as values.
+        partial_input_grn: "Groundtruth" edges from input GRN.
+        gene_to_clust: Clustering of genes, with gene names as keys and cluster IDs as values.
 
-    Returns: None. The counters of edge_counts are updated in-place.
+    Returns: None. Partial_input_GRN is updated in-place.
     """
 
-    # Importance of each TF cluster in the shuffled GRN, by position in edge_counts['clusters'].
-    # Note that each TF-cluster-ID still only occurs exactly once, since either
+    # {id of cluster of TF: importance}
+    # Note that each TF-cluster-ID (i.e. key in the following dict) still only occurs exactly once, since either
     # TFs have not been clustered (i.e. each TF has one dummy cluster) or if TFs have been clustered, then
     # each TF cluster has exactly one representative and hence can only appear once in shuffled output GRN.
-    clusters = edge_counts['clusters']
-    shuffled_importance = np.zeros(len(clusters))
-    in_shuffled = np.zeros(len(clusters), dtype=bool)
-    for tf, imp in zip(shuffled_grn['TF'], shuffled_grn['importance']):
-        position = clusters.get(tf_to_cluster[tf])
-        if position is not None:
-            shuffled_importance[position] = imp
-            in_shuffled[position] = True
+    shuffled_grn_tf_cluster_to_importance = {
+        tf_to_cluster[tf]: imp for tf, imp in zip(shuffled_grn['TF'], shuffled_grn['importance'])
+    }
 
     max_importance = shuffled_grn['importance'].max()
-    importance_input = edge_counts['importance']
-    edge_in_shuffled = in_shuffled[edge_counts['tf_cluster']]
-    if scale_for_tf_sampling:
-        edge_counts['shuffled_occurences'] += edge_in_shuffled
-    edge_counts['count'] += edge_in_shuffled & (shuffled_importance[edge_counts['tf_cluster']] >= importance_input)
-    if apply_westfall_young:
-        edge_counts['westfall_young'] += edge_in_shuffled & (max_importance >= importance_input)
-
-def edge_counts_to_df(edge_counts: dict, cluster_id: int) -> pd.DataFrame:
-    """
-    DataFrame of the edges and counters of edge_counts (see init_edge_counts), with the given cluster ID on every row.
-    """
-    return pd.DataFrame({
-        'TF': edge_counts['TF'],
-        'target': edge_counts['target'],
-        'importance': edge_counts['importance'],
-        'count': edge_counts['count'],
-        'shuffled_occurences': edge_counts['shuffled_occurences'],
-        'westfall_young': edge_counts['westfall_young'],
-        'cluster_id': cluster_id,
-    })
+    for (tf, _), val in partial_input_grn.items():
+        if tf_to_cluster[tf] in shuffled_grn_tf_cluster_to_importance:
+            importance_input = val['importance']
+            importance_shuffled = shuffled_grn_tf_cluster_to_importance[tf_to_cluster[tf]]
+            if scale_for_tf_sampling:
+                val['shuffled_occurences'] += 1
+            if importance_shuffled >= importance_input:
+                val['count'] += 1
+            if apply_westfall_young and max_importance >= importance_input:
+                val['westfall_young'] += 1
 
 def _prepare_client(client_or_address):
     """
