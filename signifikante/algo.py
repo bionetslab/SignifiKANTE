@@ -35,7 +35,8 @@ def signifikante_fdr(
         apply_westfall_young : bool = False,
         return_cluster_ids : bool = False,
         bootstraps : list = None,
-        bootstrap_predictors : bool = True
+        bootstrap_predictors : bool = True,
+        targets_per_task : int = None
 ):
     """
         :param expression_data: Expression matrix with genes as columns and samples as rows.
@@ -67,6 +68,8 @@ def signifikante_fdr(
             are added to the output.
         :param bootstrap_predictors: Whether the TF columns of the bootstraps are bootstrapped too. If False, only the targets are taken from
             the bootstraps, and the SHAP columns are not computed. Defaults to True.
+        :param targets_per_task: Number of targets inferred in one Dask task by the GRNBoost2 call (see
+            core.create_graph). None: about 10 tasks per worker. The links are the same for every value. Defaults to None.
         :return: Pandas DataFrame with columns 'TF', 'target', 'importance', 'pvalue' representing P-values on each gene regulatory link.
     """
     if cluster_representative_mode not in {'medoid', 'random', 'all_genes'}:
@@ -110,7 +113,8 @@ def signifikante_fdr(
             client_or_address=client_or_address,
             seed=seed,
             bootstraps=bootstraps,
-            bootstrap_predictors=bootstrap_predictors
+            bootstrap_predictors=bootstrap_predictors,
+            targets_per_task=targets_per_task
         )
 
     # Align the input GRN and expression data w.r.t. the genes
@@ -205,7 +209,8 @@ def grnboost2(expression_data,
               seed=None,
               verbose=False,
               bootstraps=None,
-              bootstrap_predictors=True):
+              bootstrap_predictors=True,
+              targets_per_task=None):
     """
     Run GRNBoost2 GRN inference method.
 
@@ -224,13 +229,15 @@ def grnboost2(expression_data,
             If given, the per-target bootstrap MSE columns and the bootstrap SHAP statistics are added. Defaults to None.
     :param bootstrap_predictors: Whether the TF columns of the bootstraps are bootstrapped too. If False, only the
             targets are taken from the bootstraps and no SHAP statistics are computed. Defaults to True.
+    :param targets_per_task: Number of targets inferred in one Dask task (see core.create_graph). None: about
+            10 tasks per worker. The links are the same for every value. Defaults to None.
     :return: a pandas DataFrame['TF', 'target', 'importance'] representing the inferred gene regulatory links.
     """
 
     return diy(expression_data=expression_data, regressor_type='GBM', regressor_kwargs=SGBM_KWARGS,
                gene_names=gene_names, tf_names=tf_names, target_names = target_names, client_or_address=client_or_address,
                early_stop_window_length=early_stop_window_length, limit=limit, seed=seed, verbose=verbose,
-               bootstraps=bootstraps, bootstrap_predictors=bootstrap_predictors)
+               bootstraps=bootstraps, bootstrap_predictors=bootstrap_predictors, targets_per_task=targets_per_task)
 
 
 def genie3(expression_data,
@@ -476,7 +483,8 @@ def diy(expression_data,
         seed=None,
         verbose=False,
         bootstraps=None,
-        bootstrap_predictors=True):
+        bootstrap_predictors=True,
+        targets_per_task=None):
     """
     :param expression_data: one of:
            * a pandas DataFrame (rows=observations, columns=genes)
@@ -500,6 +508,8 @@ def diy(expression_data,
                        for tree-based regressors.
     :param bootstrap_predictors: whether the TF columns of the bootstraps are bootstrapped too. If False, only the
                                  targets are taken from the bootstraps and no SHAP statistics are computed.
+    :param targets_per_task: number of targets inferred in one Dask task (see core.create_graph). None: about
+                             10 tasks per worker. The links are the same for every value.
     :return: a pandas DataFrame['TF', 'target', 'importance'] representing the inferred gene regulatory links.
     """
     if verbose:
@@ -533,7 +543,8 @@ def diy(expression_data,
                              limit=limit,
                              seed=seed,
                              bootstrap_matrices=bootstrap_matrices,
-                             bootstrap_predictors=bootstrap_predictors)
+                             bootstrap_predictors=bootstrap_predictors,
+                             targets_per_task=targets_per_task)
 
         if verbose:
             print('{} partitions'.format(graph.npartitions))

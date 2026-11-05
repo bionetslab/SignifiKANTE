@@ -1,12 +1,11 @@
 
-import copy
 from signifikante.core import (
     EARLY_STOP_WINDOW_LENGTH, DEMON_SEED, to_tf_matrix, target_gene_indices, clean, fit_model, 
     to_links_df
 )
 from signifikante.fdr_utils import (
     compute_correlation_distance_matrix, compute_wasserstein_distance_matrix, cluster_genes_to_dict, 
-    partition_input_grn, invert_tf_to_cluster_dict, count_helper, 
+    partition_input_grn, invert_tf_to_cluster_dict, count_helper, init_edge_counts, edge_counts_to_df,
     subset_tf_matrix, _prepare_client, _prepare_input
 )
 import numpy as np
@@ -479,8 +478,6 @@ def count_computation_medoid_representative(
         target_gene_index=-1
 ):
 
-    partial_input_grn = copy.deepcopy(partial_input_grn)
-
     # Remove target from TF-list and TF-expression matrix if target itself is a TF
     if not are_tfs_clustered:
         (clean_tf_matrix, clean_tf_matrix_gene_names) = clean(tf_matrix, tf_matrix_gene_names, target_gene_name)
@@ -493,11 +490,7 @@ def count_computation_medoid_representative(
         raise ValueError("Cleaned TF matrix is empty, skipping inference of target {}.".format(target_gene_name))
 
     # Initialize counts
-    for _, val in partial_input_grn.items():
-        val.update({'count': 0.0})
-        val.update({'shuffled_occurences': 0})
-        val.update({'westfall_young' : 0})
-        val.update({'cluster_id': target_gene_index})
+    edge_counts = init_edge_counts(partial_input_grn, tf_to_cluster)
 
     # Iterate for num permutations
     for i in range(n_permutations):
@@ -539,13 +532,10 @@ def count_computation_medoid_representative(
             shuffled_grn_df['importance'] = shuffled_grn_df['importance'] * scaling_factor
 
         # Update the count values of the partial input GRN
-        count_helper(shuffled_grn_df, partial_input_grn, tf_to_cluster, scale_for_tf_sampling, apply_westfall_young)
+        count_helper(shuffled_grn_df, edge_counts, tf_to_cluster, scale_for_tf_sampling, apply_westfall_young)
 
-    # Change partial input GRN format from dict to df
-    partial_input_grn_fdr_df = pd.DataFrame(
-        [(TF, target, v['importance'], v['count'], v['shuffled_occurences'], v['westfall_young'], v['cluster_id']) for (TF, target), v in partial_input_grn.items()],
-        columns=['TF', 'target', 'importance', 'count', 'shuffled_occurences', 'westfall_young', 'cluster_id']
-    )
+    # Change partial input GRN format from arrays to df
+    partial_input_grn_fdr_df = edge_counts_to_df(edge_counts, target_gene_index)
 
     if not output_dir is None:
         partial_input_grn_fdr_df.to_feather(os.path.join(output_dir, f'target_{target_gene_name}.feather'))
@@ -574,15 +564,9 @@ def count_computation_sampled_representative(
         apply_westfall_young=False
 ):
 
-    partial_input_grn = copy.deepcopy(partial_input_grn)
-
     are_tfs_clustered = (not cluster_to_tfs is None)
     # Initialize counts on input GRN edges.
-    for _, val in partial_input_grn.items():
-        val.update({'count': 0.0})
-        val.update({'shuffled_occurences': 0})
-        val.update({'westfall_young' : 0})
-        val.update({"cluster_id" : cluster_id})
+    edge_counts = init_edge_counts(partial_input_grn, tf_to_cluster)
 
     for perm in range(n_permutations):
         # Retrieve "random" target gene from cluster.
@@ -651,13 +635,10 @@ def count_computation_sampled_representative(
             shuffled_grn_df['importance'] = shuffled_grn_df['importance'] * scaling_factor
 
         # Update the count values of the partial input GRN.
-        count_helper(shuffled_grn_df, partial_input_grn, tf_to_cluster, scale_for_tf_sampling, apply_westfall_young)
+        count_helper(shuffled_grn_df, edge_counts, tf_to_cluster, scale_for_tf_sampling, apply_westfall_young)
 
-    # Change partial input GRN format from dict to df
-    partial_input_grn_fdr_df = pd.DataFrame(
-        [(TF, target, v['importance'], v['count'], v['shuffled_occurences'], v['westfall_young'], v["cluster_id"]) for (TF, target), v in partial_input_grn.items()],
-        columns=['TF', 'target', 'importance', 'count', 'shuffled_occurences', 'westfall_young', "cluster_id"]
-    )
+    # Change partial input GRN format from arrays to df
+    partial_input_grn_fdr_df = edge_counts_to_df(edge_counts, cluster_id)
 
     if not output_dir is None:
         partial_input_grn_fdr_df.to_feather(os.path.join(output_dir, f'cluster_{cluster_id}.feather'))

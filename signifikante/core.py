@@ -5,6 +5,7 @@ Core functional building blocks, composed in a Dask graph for distributed comput
 import numpy as np
 import pandas as pd
 import logging
+import math
 
 import scipy
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor, ExtraTreesRegressor
@@ -24,6 +25,8 @@ logger = logging.getLogger(__name__)
 DEMON_SEED = 666
 ANGEL_SEED = 777
 EARLY_STOP_WINDOW_LENGTH = 25
+# create_graph: default number of Dask tasks per worker when targets are batched
+TASKS_PER_WORKER = 10
 
 SKLEARN_REGRESSOR_FACTORY = {
     'RF': RandomForestRegressor,
@@ -544,6 +547,42 @@ def infer_partial_network(regressor_type,
                  warning_msg='WARNING: infer_data failed for target {0}'.format(target_gene_name))
 
 
+def infer_partial_networks(regressor_type,
+                           regressor_kwargs,
+                           tf_matrix,
+                           tf_matrix_gene_names,
+                           target_gene_names,
+                           target_gene_expressions,
+                           include_meta=False,
+                           early_stop_window_length=EARLY_STOP_WINDOW_LENGTH,
+                           seed=DEMON_SEED,
+                           bootstrap_tf_matrices=None,
+                           bootstrap_target_expressions=None):
+    """
+    Runs infer_partial_network for a batch of targets, one after the other, so that one Dask task covers several
+    targets. Every target gets the same call (and seed) as in its own task, so the links are identical.
+
+    :param target_gene_names: list of the names of the targets of this batch.
+    :param target_gene_expressions: numpy matrix (observations x targets of this batch).
+    :param bootstrap_target_expressions: (optional) list of bootstrapped matrices (observations x targets of this
+                                         batch), one per bootstrap.
+    :return: the concatenated links DataFrames of the targets (and meta DataFrames if include_meta == True), each
+             with its own index, in the order of target_gene_names.
+    """
+    results = []
+    for i, target_gene_name in enumerate(target_gene_names):
+        bootstrap_targets = None
+        if bootstrap_target_expressions is not None:
+            bootstrap_targets = [b[:, i] for b in bootstrap_target_expressions]
+        results.append(infer_partial_network(regressor_type, regressor_kwargs, tf_matrix, tf_matrix_gene_names,
+                                             target_gene_name, target_gene_expressions[:, i], include_meta,
+                                             early_stop_window_length, seed, bootstrap_tf_matrices,
+                                             bootstrap_targets))
+    if include_meta:
+        return pd.concat([links for links, _ in results]), pd.concat([meta for _, meta in results])
+    return pd.concat(results)
+
+
 def target_gene_indices(gene_names,
                         target_genes):
     """
@@ -610,7 +649,8 @@ def create_graph(expression_matrix,
                  repartition_multiplier=1,
                  seed=DEMON_SEED,
                  bootstrap_matrices=None,
-                 bootstrap_predictors=True):
+                 bootstrap_predictors=True,
+                 targets_per_task=None):
     """
     Main API function. Create a Dask computation graph.
 
@@ -636,6 +676,9 @@ def create_graph(expression_matrix,
                                  If False, they are ignored: the models predict the bootstrapped targets from the
                                  original predictors and no SHAP statistics are computed, as they would be identical
                                  for every bootstrap. Default True.
+    :param targets_per_task: number of targets inferred in one Dask task. Fewer, larger tasks cut the scheduling
+                             overhead and the size of the graph; the links are the same for every value. None: about
+                             TASKS_PER_WORKER tasks per worker. Default None.
     :return: if include_meta is False, returns a Dask graph that computes the links DataFrame.
              If include_meta is True, returns a tuple: the links DataFrame and the meta DataFrame.
     """
@@ -663,28 +706,34 @@ def create_graph(expression_matrix,
     delayed_link_dfs = []  # collection of delayed link DataFrames
     delayed_meta_dfs = []  # collection of delayed meta DataFrame
 
-    for target_gene_index in target_gene_indices(gene_names, target_genes): #pointer
-        target_gene_name = delayed(gene_names[target_gene_index], pure=True)
-        target_gene_expression = delayed(expression_matrix[:, target_gene_index], pure=True)
+    target_indices = target_gene_indices(gene_names, target_genes)
+    if targets_per_task is None:
+        targets_per_task = math.ceil(len(target_indices) / (TASKS_PER_WORKER * len(client.ncores())))
+    targets_per_task = max(1, targets_per_task)
+
+    for start in range(0, len(target_indices), targets_per_task): #pointer
+        batch_indices = target_indices[start:start + targets_per_task]
+        batch_gene_names = delayed([gene_names[i] for i in batch_indices], pure=True)
+        batch_expressions = delayed(expression_matrix[:, batch_indices], pure=True)
         bootstrap_target_expressions = None
         if with_bootstraps:
-            bootstrap_target_expressions = delayed([m[:, target_gene_index] for m in bootstrap_matrices], pure=True)
+            bootstrap_target_expressions = delayed([m[:, batch_indices] for m in bootstrap_matrices], pure=True)
 
         if include_meta:
-            delayed_link_df, delayed_meta_df = delayed(infer_partial_network, pure=True, nout=2)(
+            delayed_link_df, delayed_meta_df = delayed(infer_partial_networks, pure=True, nout=2)(
                 regressor_type, regressor_kwargs,
                 future_tf_matrix, future_tf_matrix_gene_names,
-                target_gene_name, target_gene_expression, include_meta, early_stop_window_length, seed,
+                batch_gene_names, batch_expressions, include_meta, early_stop_window_length, seed,
                 future_bootstrap_tf_matrices, bootstrap_target_expressions)
 
             if delayed_link_df is not None:
                 delayed_link_dfs.append(delayed_link_df)
                 delayed_meta_dfs.append(delayed_meta_df)
         else:
-            delayed_link_df = delayed(infer_partial_network, pure=True)(
+            delayed_link_df = delayed(infer_partial_networks, pure=True)(
                 regressor_type, regressor_kwargs,
                 future_tf_matrix, future_tf_matrix_gene_names,
-                target_gene_name, target_gene_expression, include_meta, early_stop_window_length, seed,
+                batch_gene_names, batch_expressions, include_meta, early_stop_window_length, seed,
                 future_bootstrap_tf_matrices, bootstrap_target_expressions)
 
             if delayed_link_df is not None:
